@@ -1,0 +1,64 @@
+﻿services:
+  
+  identityDb:
+    image: postgres:16-alpine
+    networks:
+      - data
+  
+  identity.api:
+    image: ${DOCKER_REGISTRY-}identity.api
+    build:
+      context: .
+      dockerfile: Services/Identity/Identity.API/Dockerfile
+    networks:
+      - backend
+      - data
+      - observability
+  
+  mailpit:
+    image: axllent/mailpit:latest
+    networks:
+      - data
+  
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.27
+    networks:
+      - observability
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.17.27
+    networks:
+      - observability
+
+  prometheus:
+    image: prom/prometheus:v2.48.1
+    networks:
+      - observability
+
+  loki:
+    image: grafana/loki:2.9.3
+    networks:
+      - observability
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.91.0
+    networks:
+      - observability
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.52
+    networks:
+      - observability
+
+networks:
+  backend:
+    driver: bridge
+  data:
+    driver: bridge
+  observability:
+    driver: bridge
+
+volumes:
+  postgres_identity_db:
+  mailpit_data:
+  elasticsearch-data:

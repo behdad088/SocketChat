@@ -1,0 +1,147 @@
+services:
+  
+  identityDb:
+    container_name: identityDb
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=IdentityDb
+    restart: always
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_identity_db:/var/lib/postgresql/data/
+  
+  mailpit:
+    image: axllent/mailpit
+    container_name: mailpit
+    restart: unless-stopped
+    volumes:
+      - mailpit_data:/data
+    healthcheck:
+      test: [ "CMD", "/mailpit", "readyz" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - 8025:8025
+      - 1025:1025
+    environment:
+      MP_MAX_MESSAGES: 5000
+      MP_DATABASE: /data/mailpit.db
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+  
+  identity.api:
+    container_name: identity.api
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -sfk https://localhost:8081/hc || exit 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_HTTP_PORTS=8080
+      - ASPNETCORE_HTTPS_PORTS=8081
+      - ASPNETCORE_Kestrel__Certificates__Default__Password=dev
+      - ASPNETCORE_Kestrel__Certificates__Default__Path=/app/certificates/identity.pfx
+      - ConnectionStrings__IdentityDB=Host=identityDb;Port=5432;Database=IdentityDb;User Id=postgres;Password=postgres
+      - EmailService__base_url=mailpit
+      - EmailService__sender=no-reply@socketchatx.dev
+      - EmailService__authentication_key # your mailtrap authentication key, I added mine to .env file
+      - service_url=https://localhost:7063 # identity api url in docker
+      - Logger__elasticsearch=http://elasticsearch:9200
+      - OTEL_EXPORTER_JAEGER_AGENT_HOST=jaeger
+      - OTEL_EXPORTER_JAEGER_AGENT_PORT=6831
+      - OTEL_EXPORTER_JAEGER_ENDPOINT=http://jaeger:14268/api/traces
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+    depends_on:
+      identityDb:
+        condition: service_healthy
+    ports:
+      - "7000:8080"
+      - "7063:8081"
+    volumes:
+      - ${HOME}/.microsoft/usersecrets:/home/app/.microsoft/usersecrets:ro
+      - ${HOME}/.aspnet/https:/home/app/.aspnet/https:ro
+      - ./certificates:/app/certificates
+  
+  elasticsearch:
+    container_name: elasticsearch
+    restart: unless-stopped
+    environment:
+      - xpack.monitoring.enabled=true
+      - xpack.watcher.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - discovery.type=single-node
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -E '\"status\":\"(green|yellow)\"' || exit 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+
+  kibana:
+    container_name: kibana
+    restart: unless-stopped
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    ports:
+      - "5601:5601"
+
+  otel-collector:
+    container_name: otel-collector
+    restart: unless-stopped
+    command: --config /etc/otelcol/otel-collector-config.yml
+    volumes:
+      - ./otel/otel-collector-config.yml:/etc/otelcol/otel-collector-config.yml
+    ports:
+      - "4317:4317"
+    depends_on:
+      - jaeger
+      - prometheus
+      - loki
+
+  jaeger:
+    container_name: jaeger
+    restart: unless-stopped
+    command: --query.ui-config=/etc/jaeger/jaeger-ui.json --collector.otlp.enabled=true --prometheus.server-url=http://prometheus:9090 --prometheus.query.support-spanmetrics-connector=true
+    environment:
+      - METRICS_STORAGE_TYPE=prometheus
+      - PROMETHEUS_QUERY_NORMALIZE_CALLS=true
+      - PROMETHEUS_QUERY_NORMALIZE_DURATION=true
+    volumes:
+      - ./otel/jaeger-ui.json:/etc/jaeger/jaeger-ui.json
+    ports:
+      - "16686:16686"
+
+  prometheus:
+    container_name: prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - "./otel/prometheus.yml:/etc/prometheus/prometheus.yml"
+
+  loki:
+    container_name: loki
+    restart: unless-stopped
+    command: -config.file=/mnt/config/loki-config.yml
+    volumes:
+      - ./otel/loki.yml:/mnt/config/loki-config.yml
+    ports:
+      - "3100:3100"
