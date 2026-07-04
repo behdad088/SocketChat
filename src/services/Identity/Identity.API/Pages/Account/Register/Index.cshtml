@@ -1,0 +1,55 @@
+@page
+@model Identity.API.Pages.Account.Register.Index
+
+
+<div>
+    <partial name="Shared/_ValidationSummary"/>
+    <div class="row">
+        <div class="col-sm-12 col-lg-6 offset-lg-3">
+            <div class="card-header">
+                <h2>Register</h2>
+            </div>
+            <div class="card-body">
+                <form asp-route="Register">
+                    <input type="hidden" asp-for="Input.ReturnUrl"/>
+                    <div class="form-group">
+                        <label asp-for="Input.Email"></label>
+                        <input class="form-control" placeholder="email" asp-for="Input.Email" autofocus>
+                    </div>
+                    <div class="form-group">
+                        <label asp-for="Input.Password"></label>
+                        <input type="password" class="form-control" placeholder="password"
+                               asp-for="Input.Password" autofocus>
+                    </div>
+                    <div class="form-group">
+                        <label asp-for="Input.ConfirmPassword"></label>
+                        <input type="password" class="form-control" placeholder="confirm password"
+                               asp-for="Input.ConfirmPassword" autofocus>
+                    </div>
+                    <button type="submit" class="btn btn-primary" name="button" value="register">Register</button>
+                </form>
+                <br/>
+                @if (!string.IsNullOrEmpty(TempData["RegistrationMessage"] as string))
+                {
+                <div class="alert alert-success" role="alert">
+                    @TempData["RegistrationMessage"]
+
+                    @if (TempData["RegisteredUserEmail"] != null)
+                    {
+                        <form method="post" asp-page-handler="ResendEmail" style="margin-top:10px;">
+                            <input type="hidden" asp-for="Input.ReturnUrl"/>
+                            <input type="hidden" name="UserEmail" value="@Model.RegisteredUserEmail"/>
+                            <input type="hidden" name="UserId" value="@Model.RegisteredUserId"/>
+                            <button type="submit" class="btn btn-link">Didn't receive the email? Resend it</button>
+                        </form>
+                    }
+                </div>
+                }
+            </div>
+            <div class="card-footer">
+                <a asp-page="../Login/Index" asp-route-returnUrl="@Model.Input.ReturnUrl">Login</a>
+            </div>
+        </div>
+
+    </div>
+</div>

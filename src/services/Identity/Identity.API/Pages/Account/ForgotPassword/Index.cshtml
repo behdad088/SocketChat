@@ -1,0 +1,26 @@
+@page
+@model Identity.API.Pages.Account.ForgotPassword.Index
+
+<partial name="_ValidationSummary"/>
+<div class="col-sm-12 col-lg-6 offset-lg-3">
+    <h2 class="mb-4">Send Reset Password Link</h2>
+    <form method="post">
+        <div class="mb-3">
+            <input type="hidden" asp-for="@Model.Input.ReturnUrl"/>
+            <label asp-for="@Model.Input.Email" class="form-label">Email address</label>
+            <input asp-for="@Model.Input.Email" type="email" class="form-control" placeholder="Enter your email">
+            <span asp-validation-for="@Model.Input.Email" class="text-danger"></span>
+        </div>
+        <button type="submit" class="btn btn-primary">Submit</button>
+    </form>
+    <br/>
+    <div class="card-footer">
+        <a asp-page="../Login/Index" asp-route-returnUrl="@Model.Input.ReturnUrl">Login</a>
+    </div>
+    <br/>
+    @if (Model.View.ShowMessage)
+    {
+        <div class="alert alert-success" role="alert">
+            If an account with that email exists, a password reset link has been sent to your email address</div>
+    }
+</div>

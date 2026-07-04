@@ -1,0 +1,1042 @@
+openapi: 3.0.0
+info:
+  title: Identity API
+  version: 1.0.0
+  description: |
+    Duende IdentityServer with ASP.NET Identity for the microservices platform.
+    Provides OpenID Connect and OAuth 2.0 flows for authentication and authorization.
+
+    ## Scopes
+    | Scope | Service |
+    |---|---|
+    | `basket` | Basket Service |
+    | `catalog` | Catalog Service |
+    | `orders_command` | Orders Command Service |
+    | `orders_query` | Orders Query Service |
+
+    ## Roles
+    - **admin** — full access to catalog management, order administration, and all basket/order reads
+    - **customer** — basket operations, own order creation, and order reads scoped to their account
+
+    ## Registered Clients
+    - **postman-client** — Implicit grant, redirect to `https://oauth.pstmn.io/v1/browser-callback`
+
+    ## Email Service
+
+    Email verification and password reset emails are sent via **MailKit** over
+    SMTP to a **Mailpit** server (local development mail catcher).
+
+    | Config key | Value (dev) | Purpose |
+    |---|---|---|
+    | `EmailService.base_url` | `localhost` | Mailpit SMTP host |
+    | `EmailService.sender` | `hello@behdad.dev` | From address |
+    | SMTP port | `1025` | Mailpit default SMTP port |
+
+    Mailpit web UI (view caught emails): `http://localhost:8025`
+
+    **Verification link format:**
+    `{service_url}/account/email-verification?code={code}[&returnUrl=...]`
+
+    **Reset password link format:**
+    `{service_url}/account/reset-password?code={code}[&returnUrl=...]`
+
+    where `service_url` is configured via `appsettings.json > service_url`
+    (default: `http://localhost:5000`).
+
+servers:
+  - url: https://localhost:5007
+    description: Local development server
+
+tags:
+  - name: OIDC Discovery
+    description: OpenID Connect discovery and session management endpoints (auto-exposed by Duende IdentityServer)
+  - name: OAuth2 Tokens
+    description: Token issuance, revocation, and introspection
+  - name: Account UI
+    description: |
+      Razor Page–based UI flows. These return HTML (not JSON) and are intended for browser interaction.
+      Routes are registered via `AddPageRoute` conventions in `HostingExtensions.cs`.
+  - name: External Login
+    description: External identity provider flows (Google)
+
+paths:
+
+  # ─── OIDC Discovery ────────────────────────────────────────────────────────
+
+  /.well-known/openid-configuration:
+    get:
+      tags: [OIDC Discovery]
+      summary: Discovery Document
+      description: |
+        Returns the OpenID Connect Provider Metadata document. Lists all supported
+        endpoints, scopes, claims, signing algorithms, and grant types for this
+        IdentityServer instance.
+      responses:
+        '200':
+          description: Provider metadata JSON
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OidcDiscoveryDocument'
+
+  /.well-known/openid-configuration/jwks:
+    get:
+      tags: [OIDC Discovery]
+      summary: JSON Web Key Set (JWKS)
+      description: |
+        Returns the public signing keys used to validate JWTs issued by this server.
+        The active key is loaded from `tempkey.jwk` in non-production and from a
+        persistent key store in production.
+      responses:
+        '200':
+          description: JWKS document
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  keys:
+                    type: array
+                    items:
+                      type: object
+
+  # ─── Authorization ─────────────────────────────────────────────────────────
+
+  /connect/authorize:
+    get:
+      tags: [OAuth2 Tokens]
+      summary: Authorization Endpoint
+      description: |
+        Initiates an OAuth 2.0 / OIDC authorization request. The registered
+        `postman-client` uses the **Implicit** grant and will redirect to
+        `https://oauth.pstmn.io/v1/browser-callback` after login.
+
+        Supported `response_type` values are constrained by the configured client's
+        `AllowedGrantTypes` (`implicit` → `token`, `id_token`, `id_token token`).
+      parameters:
+        - $ref: '#/components/parameters/client_id'
+        - $ref: '#/components/parameters/scope'
+        - $ref: '#/components/parameters/redirect_uri'
+        - $ref: '#/components/parameters/response_type'
+        - $ref: '#/components/parameters/state'
+        - name: nonce
+          in: query
+          description: >-
+            Required for `id_token` response types. A value that binds the
+            client session to the ID token.
+          required: false
+          schema:
+            type: string
+        - name: prompt
+          in: query
+          description: Specifies whether to prompt the user for re-authentication or consent.
+          required: false
+          schema:
+            type: string
+            enum: [none, login, consent, select_account]
+        - name: code_challenge
+          in: query
+          description: PKCE code challenge (S256 recommended).
+          required: false
+          schema:
+            type: string
+        - name: code_challenge_method
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [S256, plain]
+      responses:
+        '302':
+          description: Redirect to login UI or back to `redirect_uri` with token/code
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ─── Token ─────────────────────────────────────────────────────────────────
+
+  /connect/token:
+    post:
+      tags: [OAuth2 Tokens]
+      summary: Token Endpoint
+      description: |
+        Issues access tokens, ID tokens, and refresh tokens.
+
+        **Supported grant types** (from `Config.cs` and registered clients):
+        | Grant Type | Use case |
+        |---|---|
+        | `authorization_code` | Standard OIDC code flow with optional PKCE |
+        | `client_credentials` | Service-to-service (no user context) |
+        | `password` | Resource owner password (legacy) |
+        | `refresh_token` | Exchange a refresh token for a new access token |
+        | `urn:ietf:params:oauth:grant-type:device_code` | Device authorization flow |
+
+        **Available scopes:** `openid`, `profile`, `basket`, `catalog`, `orders_command`, `orders_query`
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenRequest'
+      responses:
+        '200':
+          description: Token response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ─── UserInfo ──────────────────────────────────────────────────────────────
+
+  /connect/userinfo:
+    get:
+      tags: [OAuth2 Tokens]
+      summary: UserInfo Endpoint
+      description: |
+        Returns claims about the authenticated user. The `ProfileService`
+        (`Identity.API.Services.ProfileService`) populates custom claims from
+        `ApplicationUser`, including `role` and `permissions` claims derived from
+        the role/policy mapping in `Config.RolePolicyDefinitions`.
+
+        Standard claims returned (when the `profile` scope is requested):
+        `sub`, `name`, `given_name`, `family_name`, `website`
+
+        Custom claims: `role`, `permissions` (array of policy strings per role)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User claims object
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserInfoResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [OAuth2 Tokens]
+      summary: UserInfo Endpoint (POST)
+      description: Same as GET — POST is also supported per the OIDC spec.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User claims object
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserInfoResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ─── End Session ───────────────────────────────────────────────────────────
+
+  /connect/endsession:
+    get:
+      tags: [OAuth2 Tokens]
+      summary: End Session (Logout) Endpoint
+      description: |
+        Initiates front-channel logout. If `id_token_hint` is provided the server
+        will validate it and redirect to `post_logout_redirect_uri` after sign-out.
+        Clears the ASP.NET Identity authentication cookie and the IdentityServer
+        session cookie.
+      parameters:
+        - $ref: '#/components/parameters/id_token_hint'
+        - $ref: '#/components/parameters/post_logout_redirect_uri'
+        - $ref: '#/components/parameters/state'
+      responses:
+        '302':
+          description: Redirect to logout confirmation page or `post_logout_redirect_uri`
+
+  # ─── Check Session ─────────────────────────────────────────────────────────
+
+  /connect/checksession:
+    get:
+      tags: [OIDC Discovery]
+      summary: Check Session iFrame Endpoint
+      description: |
+        Returns an HTML page containing a JavaScript helper for clients implementing
+        the OpenID Connect Session Management spec (front-channel session monitoring).
+      responses:
+        '200':
+          description: HTML session-check iframe page
+          content:
+            text/html:
+              schema:
+                type: string
+
+  # ─── Token Revocation ──────────────────────────────────────────────────────
+
+  /connect/revocation:
+    post:
+      tags: [OAuth2 Tokens]
+      summary: Token Revocation Endpoint (RFC 7009)
+      description: Revokes an access token or refresh token previously issued by this server.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RevocationRequest'
+      responses:
+        '200':
+          description: Token successfully revoked (or was already invalid)
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ─── Introspection ─────────────────────────────────────────────────────────
+
+  /connect/introspect:
+    post:
+      tags: [OAuth2 Tokens]
+      summary: Token Introspection Endpoint (RFC 7662)
+      description: |
+        Allows resource servers (`basket`, `catalog`, `order.command`, `order.query`)
+        to validate an access token and retrieve its metadata. Requires HTTP Basic
+        Auth with the API resource credentials.
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/IntrospectionRequest'
+      responses:
+        '200':
+          description: Token metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntrospectionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ─── Device Authorization ──────────────────────────────────────────────────
+
+  /connect/deviceauthorization:
+    post:
+      tags: [OAuth2 Tokens]
+      summary: Device Authorization Endpoint (RFC 8628)
+      description: Starts a Device Authorization Grant flow for input-constrained devices.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DeviceAuthorizationRequest'
+      responses:
+        '200':
+          description: Device and user codes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceAuthorizationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ─── CIBA ──────────────────────────────────────────────────────────────────
+
+  /connect/ciba:
+    post:
+      tags: [OAuth2 Tokens]
+      summary: Backchannel Authentication Endpoint (CIBA)
+      description: Client Initiated Backchannel Authentication flow.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CibaRequest'
+      responses:
+        '200':
+          description: Authentication request ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CibaResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ─── PAR ───────────────────────────────────────────────────────────────────
+
+  /connect/par:
+    post:
+      tags: [OAuth2 Tokens]
+      summary: Pushed Authorization Request Endpoint (PAR — RFC 9126)
+      description: |
+        Pushes authorization parameters to the server before the redirect, returning
+        a `request_uri` to be used at the `/connect/authorize` endpoint.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ParRequest'
+      responses:
+        '201':
+          description: Request URI created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ─── Account UI (Razor Pages) ──────────────────────────────────────────────
+
+  /Account/Login:
+    get:
+      tags: [Account UI]
+      summary: Login Page
+      description: |
+        Renders the login form. Accepts `returnUrl` query parameter to redirect
+        after successful authentication. Supports local login (username/password via
+        ASP.NET Identity) and external login via Google (`/signin-google`).
+      parameters:
+        - name: returnUrl
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: HTML login page
+          content:
+            text/html:
+              schema:
+                type: string
+        '302':
+          description: Already authenticated — redirect to `returnUrl`
+    post:
+      tags: [Account UI]
+      summary: Submit Login Form
+      description: |
+        Processes login credentials. On success, sets the ASP.NET Identity
+        authentication cookie and redirects to `returnUrl`. On failure, returns
+        the login page with validation errors.
+
+        Validates against `UserManager<ApplicationUser>` with
+        `SignInManager.PasswordSignInAsync`.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [Username, Password]
+              properties:
+                Username:
+                  type: string
+                  description: The user's email address (used as username).
+                  example: AliceSmith@email.com
+                Password:
+                  type: string
+                  format: password
+                  example: Pass123$
+                RememberLogin:
+                  type: boolean
+                  default: false
+                ReturnUrl:
+                  type: string
+                button:
+                  type: string
+                  description: Submit action. Use `login` to authenticate or `cancel` to abort.
+                  enum: [login, cancel]
+      responses:
+        '302':
+          description: Redirect to `returnUrl` on success, or back to login on failure
+        '200':
+          description: Login page with validation errors
+
+  /Account/Logout:
+    get:
+      tags: [Account UI]
+      summary: Logout Page
+      description: Renders a logout confirmation page or logs the user out immediately.
+      parameters:
+        - name: logoutId
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: HTML logout confirmation page
+          content:
+            text/html:
+              schema:
+                type: string
+        '302':
+          description: Redirect after logout completed
+    post:
+      tags: [Account UI]
+      summary: Submit Logout
+      description: Signs the user out of ASP.NET Identity and IdentityServer sessions.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                logoutId:
+                  type: string
+                button:
+                  type: string
+                  enum: [logout]
+      responses:
+        '302':
+          description: Redirect to logged-out page or `PostLogoutRedirectUri`
+
+  /Account/email-verification:
+    get:
+      tags: [Account UI]
+      summary: Email Verification Page
+      description: |
+        Razor Page mapped to `/Account/EmailVerification/Index` via `AddPageRoute`.
+        Handles email address confirmation. Accepts `userId` and `code` (token) as
+        query parameters, then calls `UserManager.ConfirmEmailAsync`.
+
+        The `MailKitService` sends confirmation emails via **MailKit** over SMTP
+        to **Mailpit** (`EmailService` settings in `appsettings.json`).
+      parameters:
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: code
+          in: query
+          required: true
+          description: Base64-encoded email confirmation token generated by `UserManager`.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: HTML page showing confirmation success or failure
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /Account/reset-password:
+    get:
+      tags: [Account UI]
+      summary: Reset Password Page
+      description: |
+        Razor Page mapped to `/Account/ResetPassword/Index` via `AddPageRoute`.
+        Renders a form to enter a new password. Accepts `email` and `token` as
+        query parameters.
+      parameters:
+        - name: email
+          in: query
+          required: true
+          schema:
+            type: string
+            format: email
+        - name: token
+          in: query
+          required: true
+          description: Password reset token generated by `UserManager.GeneratePasswordResetTokenAsync`.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: HTML password reset form
+          content:
+            text/html:
+              schema:
+                type: string
+    post:
+      tags: [Account UI]
+      summary: Submit Password Reset
+      description: |
+        Processes the password reset form. Calls `UserManager.ResetPasswordAsync`
+        with the provided token and new password.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [Email, Token, Password, ConfirmPassword]
+              properties:
+                Email:
+                  type: string
+                  format: email
+                Token:
+                  type: string
+                Password:
+                  type: string
+                  format: password
+                ConfirmPassword:
+                  type: string
+                  format: password
+      responses:
+        '302':
+          description: Redirect to login page on success
+        '200':
+          description: Reset form with validation errors
+
+  # ─── External Login (Google) ───────────────────────────────────────────────
+
+  /signin-google:
+    get:
+      tags: [External Login]
+      summary: Google OAuth2 Callback
+      description: |
+        Callback URL registered with Google OAuth2 (`options.ClientId` / `options.ClientSecret`
+        in `HostingExtensions.cs`). ASP.NET Core's Google handler exchanges the
+        authorization code and signs the user in via the
+        `IdentityServerConstants.ExternalCookieAuthenticationScheme` cookie,
+        then redirects back into the IdentityServer login flow.
+
+        > **Note:** Google credentials must be configured in `HostingExtensions.cs`
+        > before this endpoint is functional.
+      parameters:
+        - name: code
+          in: query
+          required: true
+          description: Authorization code returned by Google.
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Redirect back into the IdentityServer authorize flow
+
+# ─── Components ──────────────────────────────────────────────────────────────
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token issued by `/connect/token`.
+    BasicAuth:
+      type: http
+      scheme: basic
+      description: API resource name and secret for introspection endpoint.
+
+  responses:
+    BadRequest:
+      description: Bad Request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  parameters:
+    client_id:
+      name: client_id
+      in: query
+      required: true
+      description: >-
+        The client identifier. Registered client: `postman-client`
+        (Implicit grant, redirect `https://oauth.pstmn.io/v1/browser-callback`).
+      schema:
+        type: string
+        example: postman-client
+    scope:
+      name: scope
+      in: query
+      required: true
+      description: >-
+        Space-separated list of requested scopes. Available:
+        `openid`, `profile`, `basket`, `catalog`, `orders_command`, `orders_query`.
+      schema:
+        type: string
+        example: openid profile basket
+    redirect_uri:
+      name: redirect_uri
+      in: query
+      required: true
+      description: >-
+        Must exactly match one of the client's registered redirect URIs.
+        For `postman-client`: `https://oauth.pstmn.io/v1/browser-callback`.
+      schema:
+        type: string
+        example: https://oauth.pstmn.io/v1/browser-callback
+    response_type:
+      name: response_type
+      in: query
+      required: true
+      description: >-
+        Desired response type. `postman-client` uses Implicit grant,
+        so valid values are `token`, `id_token`, or `id_token token`.
+      schema:
+        type: string
+        enum: [token, id_token, "id_token token", code, "code id_token", "code id_token token"]
+        example: id_token token
+    state:
+      name: state
+      in: query
+      required: false
+      description: Opaque value used to maintain state between the request and callback.
+      schema:
+        type: string
+    id_token_hint:
+      name: id_token_hint
+      in: query
+      required: false
+      description: Previously issued ID token, used to identify the user session to end.
+      schema:
+        type: string
+    post_logout_redirect_uri:
+      name: post_logout_redirect_uri
+      in: query
+      required: false
+      description: URI to redirect to after logout completes.
+      schema:
+        type: string
+
+  schemas:
+
+    TokenRequest:
+      type: object
+      required: [grant_type, client_id]
+      properties:
+        grant_type:
+          type: string
+          enum:
+            - authorization_code
+            - client_credentials
+            - password
+            - refresh_token
+            - urn:ietf:params:oauth:grant-type:device_code
+        client_id:
+          type: string
+          example: postman-client
+        client_secret:
+          type: string
+        code:
+          type: string
+          description: Authorization code (required for `authorization_code` grant).
+        redirect_uri:
+          type: string
+          description: Must match the redirect URI used in the authorization request.
+        code_verifier:
+          type: string
+          description: PKCE code verifier (required if `code_challenge` was used in authorize).
+        username:
+          type: string
+          description: Resource owner username (required for `password` grant).
+        password:
+          type: string
+          format: password
+          description: Resource owner password (required for `password` grant).
+        scope:
+          type: string
+          description: Space-separated scopes. Available — `openid profile basket catalog orders_command orders_query`.
+          example: openid profile basket
+        refresh_token:
+          type: string
+          description: Refresh token (required for `refresh_token` grant).
+        device_code:
+          type: string
+          description: Device code (required for `device_code` grant).
+
+    TokenResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+          description: JWT access token. Contains `sub`, `role`, and `permissions` claims.
+        id_token:
+          type: string
+          description: JWT ID token (only when `openid` scope was requested).
+        token_type:
+          type: string
+          example: Bearer
+        expires_in:
+          type: integer
+          description: Access token lifetime in seconds.
+        refresh_token:
+          type: string
+          description: Present when `offline_access` scope was granted.
+        scope:
+          type: string
+          description: Granted scopes (may differ from requested).
+
+    UserInfoResponse:
+      type: object
+      description: |
+        Claims returned by the ProfileService. Populated from `ApplicationUser`
+        and the role/permissions mapping in `Config.RolePolicyDefinitions`.
+      properties:
+        sub:
+          type: string
+          description: Subject identifier (user GUID from `ApplicationUser.Id`).
+        name:
+          type: string
+          example: Alice Smith
+        given_name:
+          type: string
+          example: Alice
+        family_name:
+          type: string
+          example: Smith
+        website:
+          type: string
+          example: http://alice.example.com
+        role:
+          type: string
+          description: Role assigned to the user — `admin` or `customer`.
+          enum: [admin, customer]
+        permissions:
+          type: array
+          description: |
+            Policy strings derived from `Config.RolePolicyDefinitions.PolicyToRoles`.
+            Examples for `customer` role:
+            `basket:user-basket:delete`, `basket:user-basket:get`,
+            `basket:user-basket:store`, `basket:user-basket:checkout`,
+            `orders_command:order:create`, `orders_command:order:get`,
+            `orders_command:order:all-by-customer-id`, `orders_command:order:update`,
+            `orders_query:order:get`, `orders_query:order:all-by-customer-id`.
+          items:
+            type: string
+            example: basket:user-basket:get
+
+    RevocationRequest:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+          description: The access or refresh token to revoke.
+        token_type_hint:
+          type: string
+          enum: [access_token, refresh_token]
+
+    IntrospectionRequest:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+        token_type_hint:
+          type: string
+          enum: [access_token, refresh_token]
+
+    IntrospectionResponse:
+      type: object
+      properties:
+        active:
+          type: boolean
+          description: Whether the token is currently active.
+        sub:
+          type: string
+        scope:
+          type: string
+        client_id:
+          type: string
+        token_type:
+          type: string
+          example: access_token
+        exp:
+          type: integer
+          description: Expiration time (Unix timestamp).
+        iat:
+          type: integer
+          description: Issued at time (Unix timestamp).
+
+    DeviceAuthorizationRequest:
+      type: object
+      required: [client_id]
+      properties:
+        client_id:
+          type: string
+          example: postman-client
+        scope:
+          type: string
+          example: openid profile basket
+
+    DeviceAuthorizationResponse:
+      type: object
+      properties:
+        device_code:
+          type: string
+        user_code:
+          type: string
+          description: Short code the user enters at `verification_uri`.
+        verification_uri:
+          type: string
+        verification_uri_complete:
+          type: string
+          description: Verification URI with `user_code` pre-filled.
+        expires_in:
+          type: integer
+        interval:
+          type: integer
+          description: Minimum polling interval in seconds.
+
+    CibaRequest:
+      type: object
+      required: [client_id, scope]
+      properties:
+        client_id:
+          type: string
+        client_secret:
+          type: string
+        scope:
+          type: string
+        login_hint:
+          type: string
+          description: Hint about the user's login identifier.
+
+    CibaResponse:
+      type: object
+      properties:
+        auth_req_id:
+          type: string
+        expires_in:
+          type: integer
+        interval:
+          type: integer
+
+    ParRequest:
+      type: object
+      required: [client_id, response_type]
+      properties:
+        client_id:
+          type: string
+          example: postman-client
+        client_secret:
+          type: string
+        scope:
+          type: string
+          example: openid profile basket
+        response_type:
+          type: string
+          example: id_token token
+        redirect_uri:
+          type: string
+          example: https://oauth.pstmn.io/v1/browser-callback
+        state:
+          type: string
+        nonce:
+          type: string
+        code_challenge:
+          type: string
+        code_challenge_method:
+          type: string
+          enum: [S256, plain]
+
+    ParResponse:
+      type: object
+      properties:
+        request_uri:
+          type: string
+          description: URN reference to the pushed authorization request, valid for `expires_in` seconds.
+          example: urn:ietf:params:oauth:request_uri:abc123
+        expires_in:
+          type: integer
+          example: 90
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: OAuth 2.0 error code (e.g. `invalid_request`, `unauthorized_client`).
+          example: invalid_request
+        error_description:
+          type: string
+          description: Human-readable error description.
+
+    OidcDiscoveryDocument:
+      type: object
+      description: Standard OpenID Connect Provider Metadata (RFC 8414).
+      properties:
+        issuer:
+          type: string
+          example: https://localhost:5007
+        authorization_endpoint:
+          type: string
+          example: https://localhost:5007/connect/authorize
+        token_endpoint:
+          type: string
+          example: https://localhost:5007/connect/token
+        userinfo_endpoint:
+          type: string
+          example: https://localhost:5007/connect/userinfo
+        end_session_endpoint:
+          type: string
+          example: https://localhost:5007/connect/endsession
+        check_session_iframe:
+          type: string
+          example: https://localhost:5007/connect/checksession
+        revocation_endpoint:
+          type: string
+          example: https://localhost:5007/connect/revocation
+        introspection_endpoint:
+          type: string
+          example: https://localhost:5007/connect/introspect
+        device_authorization_endpoint:
+          type: string
+          example: https://localhost:5007/connect/deviceauthorization
+        backchannel_authentication_endpoint:
+          type: string
+          example: https://localhost:5007/connect/ciba
+        pushed_authorization_request_endpoint:
+          type: string
+          example: https://localhost:5007/connect/par
+        jwks_uri:
+          type: string
+          example: https://localhost:5007/.well-known/openid-configuration/jwks
+        scopes_supported:
+          type: array
+          items:
+            type: string
+          example: [openid, profile, basket, catalog, orders_command, orders_query]
+        response_types_supported:
+          type: array
+          items:
+            type: string
+        grant_types_supported:
+          type: array
+          items:
+            type: string
+        subject_types_supported:
+          type: array
+          items:
+            type: string
+        id_token_signing_alg_values_supported:
+          type: array
+          items:
+            type: string

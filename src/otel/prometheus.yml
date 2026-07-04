@@ -1,0 +1,33 @@
+
+global:
+  scrape_interval:     10s
+  evaluation_interval: 10s
+
+scrape_configs:
+  - job_name: aggregated-trace-metrics
+    static_configs:
+      - targets:
+          - otel-collector:8889
+
+  - job_name: jaeger
+    static_configs:
+      - targets:
+          - jaeger:14269
+
+  - job_name: services
+    static_configs:
+      - targets:
+          - catalog.api:8080
+          - catalog.api:8081
+          - basket.api:8080
+          - basket.api:8081
+          - discount.grpc:8080
+          - discount.grpc:8081
+          - order.command.api:8080
+          - order.command.api:8081
+          - identity.api:8080
+          - identity.api:8081
+          - order.query.eventprocessor:8080
+          - order.query.eventprocessor:8081
+          - order.query.api:8080
+          - order.query.api:8081

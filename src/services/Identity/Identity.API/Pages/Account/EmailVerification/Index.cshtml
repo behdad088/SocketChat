@@ -1,0 +1,61 @@
+@page
+@model Identity.API.Pages.Account.EmailVerification.Index
+@{
+ViewData["Title"] = "Email Verification";
+}
+
+<div>
+    <partial name="Shared/_ValidationSummary"/>
+    <div class="container mt-5">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div id="verifyingBox" class="alert alert-info d-flex align-items-center" role="alert">
+                    <div class="spinner-border text-success" role="status">
+                        <span class="sr-only">Loading...</span>
+                    </div>
+                    <div>Verifying your email, please wait...</div>
+                </div>
+
+                <div id="resultBox" class="alert d-none" role="alert"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+    window.addEventListener('DOMContentLoaded', () => {
+        const resultBox = document.getElementById('resultBox');
+        const verifyingBox = document.getElementById('verifyingBox');
+        const code = "@(HttpContext.Request.Query["code"].ToString())";
+        if (!code) {
+            showError("No verification code provided.");
+            return;
+        }
+
+        fetch(`/account/email-verification?handler=VerifyCode&code=${code}`)
+            .then(res => res.json())
+            .then(data => {
+                HideVerifyingBox();               
+                resultBox.classList.remove('d-none');
+                resultBox.classList.add('alert-' + (data.success ? 'success' : 'danger'));
+                resultBox.innerHTML = `<strong>${data.message}</strong>`;
+            })
+            .catch(() => {
+                showError("An unexpected error occurred.");
+            });
+
+        function showError(msg) {
+            HideVerifyingBox();
+            resultBox.classList.remove('d-none');
+            resultBox.classList.add('alert-danger');
+            resultBox.innerHTML = `<strong>${msg}</strong>`;
+        }
+        
+        function HideVerifyingBox() {
+            verifyingBox.classList.add('d-none');
+            verifyingBox.classList.remove('d-flex');
+        }
+    });
+</script>
+}

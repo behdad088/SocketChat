@@ -1,0 +1,39 @@
+@page
+@model Identity.API.Pages.Account.ResetPassword.Index
+
+<partial name="_ValidationSummary"/>
+
+<div class="col-sm-12 col-lg-6 offset-lg-3">
+    <h2 class="mb-4">Reset Password</h2>
+    @if (!Model.View.InvalidCode)
+    {
+        <form method="post">
+            <input type="hidden" asp-for="@Model.Input.ReturnUrl"/>
+            <input type="hidden" asp-for="@Model.Input.Code"/>
+            <input type="hidden" asp-for="@Model.Input.UserId"/>
+            <div class="form-group">
+                <label asp-for="Input.Password"></label>
+                <input type="password" class="form-control" placeholder="password" asp-for="Input.Password" autofocus>
+                <span asp-validation-for="@Model.Input.Password" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="Input.ConfirmPassword"></label>
+                <input type="password" class="form-control" placeholder="confirm password" asp-for="Input.ConfirmPassword" autofocus>
+                <span asp-validation-for="@Model.Input.ConfirmPassword" class="text-danger"></span>
+            </div>
+            <button type="submit" class="btn btn-primary">Reset</button>
+        </form>
+    }
+    
+    <br/>
+    <div class="card-footer">
+        <a asp-page="../Login/Index" asp-route-returnUrl="@Model.Input.ReturnUrl">Login</a>
+    </div>
+    <br/>
+
+    @if (!string.IsNullOrEmpty(Model.View.Message))
+    {
+    <div class="alert alert-success" role="alert">
+        @Model.View.Message</div>
+    }
+</div>
