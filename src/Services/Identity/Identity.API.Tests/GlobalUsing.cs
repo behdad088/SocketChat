@@ -1,0 +1,9 @@
+global using Microsoft.Extensions.DependencyInjection;
+global using Shouldly;
+global using Identity.API.Tests.Infrastructure;
+global using Identity.API.Data;
+global using Microsoft.Extensions.DependencyInjection;
+global using Microsoft.Extensions.DependencyInjection;
+global using Microsoft.Extensions.DependencyInjection;
+global using Microsoft.Extensions.DependencyInjection;
+global using Microsoft.Extensions.DependencyInjection;

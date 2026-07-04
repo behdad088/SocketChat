@@ -15,7 +15,8 @@ public static class Config
     {
         public static readonly Dictionary<string, string[]> PolicyToRoles = new()
         {
-            { Policies.UserCanReadMessage, [Roles.Admin, Roles.Customer] }
+            { Policies.UserCanReadMessage, [Roles.Admin, Roles.Customer] },
+            { Policies.UserCanWriteMessage, [Roles.Admin, Roles.Customer] }
         };
     }
 
