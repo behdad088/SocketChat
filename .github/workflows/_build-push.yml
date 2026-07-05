@@ -1,0 +1,241 @@
+# Reusable workflow: builds a single .NET service, runs its tests, builds a
+# Docker image, optionally pushes it to GHCR, and runs a Trivy vulnerability
+# scan against the resulting image. Called by ci.yml (one job per changed
+# service). Do not invoke this workflow on push/pull_request directly.
+
+name: _build-push
+
+on:
+  workflow_call:
+    inputs:
+      service:
+        description: "Logical service name (used for cache scope, SARIF category, comment grouping)."
+        required: true
+        type: string
+      image_name:
+        description: "Docker image repository name (without registry/owner prefix)."
+        required: true
+        type: string
+      project_path:
+        description: "Path to the service's main .csproj directory (contains Dockerfile)."
+        required: true
+        type: string
+      test_path:
+        description: "Path to the test project directory. Leave empty to skip tests."
+        required: false
+        type: string
+        default: ''
+      push_image:
+        description: "Whether to push the image to GHCR. Multi-arch only when true."
+        required: false
+        type: boolean
+        default: false
+      image_tag_suffix:
+        description: "Optional suffix appended to image tags (e.g. '-hotfix1')."
+        required: false
+        type: string
+        default: ''
+      dotnet_version:
+        description: ".NET SDK version."
+        required: false
+        type: string
+        default: '10.0.x'
+
+permissions:
+  contents: read
+  actions: read            # codeql-action/upload-sarif needs to read the workflow run
+  pull-requests: write     # PR comment with image tags
+  security-events: write   # Trivy SARIF upload to code scanning
+  checks: write            # dorny/test-reporter creates check runs
+  packages: write          # push images to ghcr.io (GitHub Packages)
+
+jobs:
+  build-test-push:
+    name: ${{ inputs.service }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ inputs.dotnet_version }}
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ inputs.service }}-${{ hashFiles('**/*.csproj', '**/*.props', '**/packages.lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-${{ inputs.service }}-
+            ${{ runner.os }}-nuget-
+
+      - name: Restore service project
+        run: dotnet restore "${{ inputs.project_path }}"
+
+      - name: Build service project
+        run: dotnet build "${{ inputs.project_path }}" --no-restore --configuration Release
+
+      - name: Restore & test (with coverage)
+        if: inputs.test_path != ''
+        run: |
+          dotnet restore "${{ inputs.test_path }}"
+          dotnet test "${{ inputs.test_path }}" \
+            --configuration Release \
+            --logger "trx;LogFileName=test-results.trx" \
+            --logger GitHubActions \
+            --collect:"XPlat Code Coverage" \
+            --results-directory ./TestResults
+
+      - name: Publish test report
+        if: inputs.test_path != '' && (success() || failure())
+        uses: dorny/test-reporter@v1
+        with:
+          name: ${{ inputs.service }} tests
+          path: TestResults/**/test-results.trx
+          reporter: dotnet-trx
+          fail-on-error: false
+
+      - name: Upload test results artifact
+        if: inputs.test_path != '' && (success() || failure())
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ inputs.service }}
+          path: TestResults/
+          retention-days: 7
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # GHCR login uses the workflow's built-in token — no secret to manage.
+      - name: Login to GHCR
+        if: inputs.push_image
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/${{ inputs.image_name }}
+          flavor: |
+            latest=false
+            suffix=${{ inputs.image_tag_suffix }},onlatest=true
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=ref,event=pr
+            type=ref,event=branch
+            type=sha,format=short
+
+      - name: Build image (PR — single-arch, load locally)
+        if: ${{ !inputs.push_image }}
+        uses: docker/build-push-action@v6
+        with:
+          context: ./src/
+          file: ${{ inputs.project_path }}/Dockerfile
+          push: false
+          load: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ inputs.service }}
+          cache-to: type=gha,mode=max,scope=${{ inputs.service }}
+          platforms: linux/amd64
+
+      - name: Build & push image (main — multi-arch)
+        if: inputs.push_image
+        id: build_push
+        uses: docker/build-push-action@v6
+        with:
+          context: ./src/
+          file: ${{ inputs.project_path }}/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ inputs.service }}
+          cache-to: type=gha,mode=max,scope=${{ inputs.service }}
+          platforms: linux/amd64,linux/arm64
+
+      - name: Resolve primary image ref for scan
+        id: img
+        run: |
+          REF=$(echo "${{ steps.meta.outputs.tags }}" | head -n1)
+          echo "ref=${REF}" >> "$GITHUB_OUTPUT"
+
+      # trivy-action does not publish patch tags reliably; their README
+      # recommends @master. For stricter supply-chain hygiene, replace
+      # @master with a specific commit SHA from
+      # https://github.com/aquasecurity/trivy-action/commits/master
+      - name: Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@master
+        if: always()
+        with:
+          image-ref: ${{ steps.img.outputs.ref }}
+          format: sarif
+          output: trivy.sarif
+          severity: 'CRITICAL,HIGH'
+          ignore-unfixed: true
+          exit-code: '0'
+
+      - name: Upload Trivy SARIF to code scanning
+        if: always() && hashFiles('trivy.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy.sarif
+          category: trivy-${{ inputs.service }}
+
+      # When the job has failed (build error, test failure, Docker build error,
+      # Trivy critical, etc.) capture compiled binaries so they can be downloaded
+      # from the run page and used to reproduce the failure locally.
+      - name: Upload service build output on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output-${{ inputs.service }}
+          path: |
+            ${{ inputs.project_path }}/bin/Release/
+            ${{ inputs.project_path }}/obj/Release/
+          if-no-files-found: ignore
+          retention-days: 3
+
+      - name: Upload test build output on failure
+        if: failure() && inputs.test_path != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-build-output-${{ inputs.service }}
+          path: |
+            ${{ inputs.test_path }}/bin/Release/
+            ${{ inputs.test_path }}/obj/Release/
+          if-no-files-found: ignore
+          retention-days: 3
+
+      - name: Find existing image-tags PR comment
+        if: github.event_name == 'pull_request'
+        uses: peter-evans/find-comment@v3
+        id: fc
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: 'github-actions[bot]'
+          body-includes: "<!-- image-tags:${{ inputs.service }} -->"
+
+      - name: Upsert PR comment with image tags
+        if: github.event_name == 'pull_request'
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          comment-id: ${{ steps.fc.outputs.comment-id }}
+          issue-number: ${{ github.event.pull_request.number }}
+          edit-mode: replace
+          body: |
+            <!-- image-tags:${{ inputs.service }} -->
+            **${{ inputs.service }}** — image built ${{ inputs.push_image && '& pushed' || '(not pushed; PR build)' }}
+
+            ```text
+            ${{ steps.meta.outputs.tags }}
+            ```

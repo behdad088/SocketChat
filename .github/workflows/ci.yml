@@ -1,0 +1,108 @@
+# Single CI entry point for all services in this repo.
+#
+# 1. `detect` job uses dorny/paths-filter to determine which services changed.
+# 2. Each service job runs only when its files (or Shared) changed, or when
+#    the workflow is dispatched manually with `force_all = true`.
+# 3. Service jobs delegate to the reusable `_build-push.yml` workflow.
+#
+# Images are pushed to GHCR only on pushes to `main` (never on pull requests).
+# Add a new service by adding a filter to `detect` and a job below that
+# points at its project/test paths — mirrors the identity job.
+
+name: CI
+
+on:
+  workflow_dispatch:
+    inputs:
+      force_all:
+        description: 'Build every service regardless of changed paths'
+        type: boolean
+        default: false
+      image_tag_suffix:
+        description: 'Optional suffix appended to image tags (e.g. "-hotfix1")'
+        type: string
+        default: ''
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+  actions: read            # codeql-action/upload-sarif needs to read the workflow run (in _build-push.yml)
+  pull-requests: write     # PR comment with image tags (in _build-push.yml)
+  security-events: write   # Trivy SARIF upload (in _build-push.yml)
+  checks: write            # dorny/test-reporter (in _build-push.yml)
+  packages: write          # push to ghcr.io (in _build-push.yml)
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  detect:
+    name: Detect changed services
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      shared: ${{ steps.changes.outputs.shared }}
+      identity: ${{ steps.changes.outputs.identity }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect path changes
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            shared:
+              - 'src/Services/Shared/**'
+              - 'src/Directory.Packages.props'
+              - 'src/SocketChat.sln'
+              - '.github/workflows/ci.yml'
+              - '.github/workflows/_build-push.yml'
+            identity:
+              - 'src/Services/Identity/**'
+
+  identity:
+    name: Identity API
+    needs: detect
+    if: |
+      needs.detect.outputs.identity == 'true' ||
+      needs.detect.outputs.shared == 'true' ||
+      github.event.inputs.force_all == 'true'
+    uses: ./.github/workflows/_build-push.yml
+    with:
+      service: identity-api
+      image_name: socketchat-identity.api
+      project_path: src/Services/Identity/Identity.API
+      test_path: src/Services/Identity/Identity.API.Tests
+      push_image: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+      image_tag_suffix: ${{ github.event.inputs.image_tag_suffix }}
+    secrets: inherit
+
+  # Aggregate gate so branch protection only needs to require one check.
+  ci-success:
+    name: CI success
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    needs:
+      - detect
+      - identity
+    if: always()
+    steps:
+      - name: Verify all required jobs succeeded or were skipped
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          echo "$RESULTS"
+          echo "$RESULTS" | python3 -c '
+          import json, sys
+          data = json.load(sys.stdin)
+          bad = [k for k, v in data.items() if v.get("result") not in ("success", "skipped")]
+          if bad:
+              print(f"Failing jobs: {bad}")
+              sys.exit(1)
+          print("All jobs succeeded or were skipped.")
+          '
