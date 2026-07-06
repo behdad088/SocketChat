@@ -8,29 +8,25 @@ internal static class MigrateDbContextExtensions
     private static readonly string ActivitySourceName = "DbMigrations";
     private static readonly ActivitySource ActivitySource = new(ActivitySourceName);
 
-    public static IServiceCollection AddMigration<TContext>(this IServiceCollection services)
-        where TContext : DbContext
-        => services.AddMigration<TContext>((_, _) => Task.CompletedTask);
-
-    public static IServiceCollection AddMigration<TContext>(
-        this IServiceCollection services,
-        Func<TContext, IServiceProvider, Task> seeder)
-        where TContext : DbContext
-    {
-        return services.AddHostedService(sp => new MigrationHostedService<TContext>(sp, seeder));
-    }
-
-    public static IServiceCollection AddMigration<TContext, TDbSeeder>(this IServiceCollection services)
+    public static IServiceCollection AddDbSeeder<TContext, TDbSeeder>(this IServiceCollection services)
         where TContext : DbContext
         where TDbSeeder : class, IDbSeeder<TContext>
     {
-        services.AddScoped<IDbSeeder<TContext>, TDbSeeder>();
-        return services.AddMigration<TContext>((context, sp) =>
-            sp.GetRequiredService<IDbSeeder<TContext>>().SeedAsync(context));
+        return services.AddScoped<IDbSeeder<TContext>, TDbSeeder>();
     }
 
+    // Called explicitly between builder.Build() and app.Run() so migration/seeding is
+    // guaranteed complete before the host serves any request or resolves any other
+    // startup-time singleton (e.g. Data Protection's key ring, which otherwise can race
+    // ahead of this and find the schema not yet created).
+    public static Task MigrateDatabaseAsync<TContext, TDbSeeder>(this IServiceProvider services)
+        where TContext : DbContext
+        where TDbSeeder : class, IDbSeeder<TContext>
+        => services.MigrateDbContextAsync<TContext>((context, sp) =>
+            sp.GetRequiredService<IDbSeeder<TContext>>().SeedAsync(context));
+
     private static async Task MigrateDbContextAsync<TContext>(
-        this IServiceProvider services, 
+        this IServiceProvider services,
         Func<TContext, IServiceProvider, Task> seeder) where TContext : DbContext
     {
         using var scope = services.CreateScope();
@@ -76,26 +72,10 @@ internal static class MigrateDbContextExtensions
         await context.Database.MigrateAsync();
         await seeder(context, services);
     }
-
-    private class MigrationHostedService<TContext>(
-        IServiceProvider serviceProvider,
-        Func<TContext, IServiceProvider, Task> seeder)
-        : BackgroundService where TContext : DbContext
-    {
-        public override Task StartAsync(CancellationToken cancellationToken)
-        {
-            return serviceProvider.MigrateDbContextAsync(seeder);
-        }
-
-        protected override Task ExecuteAsync(CancellationToken stoppingToken)
-        {
-            return Task.CompletedTask;
-        }
-    }
 }
+
 public interface IDbSeeder<in TContext> where TContext : DbContext
 {
     Task SeedAsync(TContext context);
 }
-
 

@@ -74,7 +74,7 @@ internal static class HostingExtensions
             .SetApplicationName("identity-api")
             .PersistKeysToDbContext<ApplicationDbContext>();
 
-        builder.Services.AddMigration<ApplicationDbContext, UsersSeed>();
+        builder.Services.AddDbSeeder<ApplicationDbContext, UsersSeed>();
 
         builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
             .AddEntityFrameworkStores<ApplicationDbContext>()
