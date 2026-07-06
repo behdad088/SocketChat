@@ -1,28 +1,24 @@
-using Identity.API.Data;
 using Identity.API.Models;
-using Microsoft.AspNetCore.Identity;
+using Identity.API.Services.Account;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Identity.API.Pages.Account.ResetPassword;
 
+[EnableRateLimiting("reset-password")]
 public class Index : PageModel
 {
-    private readonly UserManager<ApplicationUser> _userManager;
-    private readonly ApplicationDbContext _dbContext;
-    
+    private readonly IAccountService _accountService;
+
     [BindProperty] public InputModel Input { get; set; } = default!;
     public ViewModel View { get; set; } = default!;
-    
-    public Index(
-        UserManager<ApplicationUser> userManager,
-        ApplicationDbContext dbContext)
+
+    public Index(IAccountService accountService)
     {
-        _userManager = userManager;
-        _dbContext = dbContext;
+        _accountService = accountService;
     }
-    
+
     public async Task<IActionResult> OnGet(string code)
     {
         if (string.IsNullOrEmpty(code))
@@ -34,51 +30,26 @@ public class Index : PageModel
                 invalidCode: true);
             return Page();
         }
-        
-        var hashedCode = VerificationCodeHasher.Hash(code);
-        var verificationCode = await _dbContext.VerificationCodes
-            .FirstOrDefaultAsync(x => x.Code == hashedCode)
-            .ConfigureAwait(false);
 
-        var errorMessage = AssertVerificationCode(verificationCode, code);
-        if (!string.IsNullOrEmpty(errorMessage))
+        var result = await _accountService.ValidateResetCodeAsync(code);
+        if (!result.Succeeded)
         {
-            ModelState.AddModelError(string.Empty, errorMessage);
+            ModelState.AddModelError(string.Empty, result.Errors.FirstOrDefault() ?? "Invalid verification Code.");
             BindModel(
                 redirectUrl: Request.Query["returnUrl"],
                 code: code,
                 invalidCode: true);
             return Page();
         }
-        
+
         BindModel(
             redirectUrl: Request.Query["returnUrl"],
             code: code,
-            userId: verificationCode!.UserId);
-        
+            userId: result.Value);
+
         return Page();
     }
-    
-    private static string AssertVerificationCode(VerificationCode? verificationCode, string code)
-    {
-        if (verificationCode == null)
-        {
-            return "Invalid verification Code.";
-        }
 
-        if (verificationCode.IsActivated)
-        {
-            return "This code has already been activated.";
-        }
-
-        if (verificationCode.IsExpired)
-        {
-            return "This code has expired. Please request a new password reset.";
-        }
-        
-        return string.Empty;
-    }
-    
     public async Task<IActionResult> OnPost()
     {
         if (!ModelState.IsValid)
@@ -86,19 +57,11 @@ public class Index : PageModel
             BindModel(redirectUrl: Input.ReturnUrl);
             return Page();
         }
-        
-        var user = await _userManager.FindByIdAsync(Input.UserId!).ConfigureAwait(false);
-        if (user == null)
-        {
-            ModelState.AddModelError(string.Empty, "User not found.");
-            return Page();
-        }
-        
-        await _userManager.RemovePasswordAsync(user).ConfigureAwait(false);
-        var result = await _userManager.AddPasswordAsync(user, Input.Password ?? string.Empty).ConfigureAwait(false);
+
+        var result = await _accountService.ResetPasswordAsync(Input.UserId!, Input.Code!, Input.Password ?? string.Empty);
         if (!result.Succeeded)
         {
-            var errors = string.Join(" ", result.Errors.Select(e => e.Description));
+            var errors = string.Join(" ", result.Errors);
             ModelState.AddModelError(string.Empty, errors);
             BindModel(
                 redirectUrl: Input.ReturnUrl,
@@ -107,34 +70,16 @@ public class Index : PageModel
                 invalidCode: false);
             return Page();
         }
-        var hashedCode = VerificationCodeHasher.Hash(Input.Code!);
-        var verificationCode = await _dbContext.VerificationCodes
-            .FirstOrDefaultAsync(x => x.Code == hashedCode)
-            .ConfigureAwait(false);
-        
-        if (verificationCode == null)
-        {
-            // This should not happen as we already checked the code in OnGet
-            // We Should add logging here
-            BindModel(
-                redirectUrl: Input.ReturnUrl,
-                code: Input.Code,
-                userId: Input.UserId,
-                message: "Your password has been successfully reset.");
-            return Page();
-        }
-        verificationCode.IsActivated = true;
-        _dbContext.VerificationCodes.Update(verificationCode);
-        await _dbContext.SaveChangesAsync().ConfigureAwait(false);
+
         BindModel(
             redirectUrl: Input.ReturnUrl,
             code: Input.Code,
             message: "Your password has been successfully reset.",
             userId: Input.UserId);
-        
+
         return Page();
     }
-    
+
     private void BindModel(
         string? redirectUrl = null,
         string? code = null,
@@ -149,7 +94,7 @@ public class Index : PageModel
             Code = code,
             UserId = userId
         };
-        
+
         View = new ViewModel
         {
             Message = message,

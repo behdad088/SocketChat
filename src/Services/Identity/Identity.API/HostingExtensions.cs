@@ -7,6 +7,8 @@ using Identity.API.Data;
 using Identity.API.Models;
 using Identity.API.Services;
 using Identity.API.Services.EmailService;
+using Identity.API.Endpoints;
+using Identity.API.Services.Account;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -44,6 +46,20 @@ internal static class HostingExtensions
             options.AddFixedWindowLimiter("forgot-password", o =>
             {
                 o.PermitLimit = 5;
+                o.Window = TimeSpan.FromMinutes(1);
+                o.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+                o.QueueLimit = 0;
+            });
+            options.AddFixedWindowLimiter("reset-password", o =>
+            {
+                o.PermitLimit = 10;
+                o.Window = TimeSpan.FromMinutes(1);
+                o.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+                o.QueueLimit = 0;
+            });
+            options.AddFixedWindowLimiter("email-verification", o =>
+            {
+                o.PermitLimit = 10;
                 o.Window = TimeSpan.FromMinutes(1);
                 o.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
                 o.QueueLimit = 0;
@@ -92,6 +108,7 @@ internal static class HostingExtensions
 
         builder.Services.AddTransient<IProfileService, ProfileService>();
         builder.Services.AddTransient<IVerificationEmailService, MailKitService>();
+        builder.Services.AddScoped<IAccountService, AccountService>();
 
         builder.Services.AddAuthentication()
             .AddGoogle(options =>
@@ -124,6 +141,7 @@ internal static class HostingExtensions
         app.UseAuthorization();
 
         app.MapRazorPages();
+        app.MapAccountEndpoints();
 
         return app;
     }
