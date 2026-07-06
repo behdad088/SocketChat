@@ -56,6 +56,12 @@ tags:
     description: |
       Razor Page–based UI flows. These return HTML (not JSON) and are intended for browser interaction.
       Routes are registered via `AddPageRoute` conventions in `HostingExtensions.cs`.
+  - name: Account API
+    description: |
+      JSON API for account lifecycle operations, intended for non-browser
+      clients (mobile apps, SPAs). Unlike the Account UI pages, these
+      endpoints return `application/problem+json` on error and don't require
+      an antiforgery token.
   - name: External Login
     description: External identity provider flows (Google)
 
@@ -626,6 +632,145 @@ paths:
       responses:
         '302':
           description: Redirect back into the IdentityServer authorize flow
+
+  # ─── Account API (JSON) ────────────────────────────────────────────────────
+
+  /api/account/register:
+    post:
+      tags: [Account API]
+      summary: Register a new account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 6, maxLength: 100 }
+                confirmPassword: { type: string }
+      responses:
+        '201':
+          description: Account created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  userId: { type: string }
+                  email: { type: string }
+        '409':
+          description: Email already registered
+        '400':
+          description: Validation failed
+
+  /api/account/register/resend-verification-email:
+    post:
+      tags: [Account API]
+      summary: Resend the email verification link
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        '200':
+          description: Generic confirmation, regardless of whether the account exists
+
+  /api/account/forgot-password:
+    post:
+      tags: [Account API]
+      summary: Request a password reset email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+                returnUrl: { type: string }
+      responses:
+        '200':
+          description: Generic confirmation, regardless of whether the account exists
+
+  /api/account/reset-password/validate:
+    get:
+      tags: [Account API]
+      summary: Validate a password reset code before showing a reset form
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Code is valid
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  userId: { type: string }
+        '400':
+          description: Code is invalid
+        '410':
+          description: Code has expired or was already used
+
+  /api/account/reset-password:
+    post:
+      tags: [Account API]
+      summary: Reset a password using a validated code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId, code, password]
+              properties:
+                userId: { type: string }
+                code: { type: string }
+                password: { type: string, minLength: 6, maxLength: 100 }
+                confirmPassword: { type: string }
+      responses:
+        '200':
+          description: Password reset
+        '400':
+          description: Validation failed or code does not belong to userId
+        '404':
+          description: User not found
+        '410':
+          description: Code has expired or was already used
+
+  /api/account/email-verification:
+    post:
+      tags: [Account API]
+      summary: Verify an email address using a verification code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code: { type: string }
+      responses:
+        '200':
+          description: Email verified
+        '400':
+          description: Code is invalid
+        '404':
+          description: User not found
+        '410':
+          description: Code has expired or was already used
 
 # ─── Components ──────────────────────────────────────────────────────────────
 

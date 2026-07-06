@@ -1,5 +1,6 @@
 using Identity.API;
 using Identity.API.Configurations.ConfigurationOptions;
+using Identity.API.Data;
 using Serilog;
 using Shared.Configurations;
 using Shared.HealthChecks;
@@ -22,6 +23,12 @@ try
     var app = builder
         .ConfigureServices()
         .ConfigurePipeline();
+
+    // Runs before the host serves any request, so migration/seeding is guaranteed
+    // complete before anything else (e.g. Data Protection's key ring) can race ahead
+    // of it and find the schema not yet created.
+    await app.Services.MigrateDatabaseAsync<ApplicationDbContext, UsersSeed>();
+
     app.UseSerilogRequestLogging(options =>
     {
         options.IncludeQueryInRequestPath = true;
