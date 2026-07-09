@@ -85,8 +85,7 @@ jobs:
       image_tag_suffix: ${{ github.event.inputs.image_tag_suffix }}
     secrets: inherit
 
-  # Node/Docker, not .NET — builds and scans its own image inline rather than
-  # going through the dotnet-oriented _build-push.yml reusable workflow.
+  # as its Dockerfile is Node-based and not .NET-based, and it has no .NET tests to run.
   web:
     name: Web
     needs: detect
@@ -95,10 +94,6 @@ jobs:
       github.event.inputs.force_all == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    # Inherits contents/actions/pull-requests/security-events/packages
-    # permissions from the workflow-level block above — a job-level
-    # `permissions:` here would replace rather than merge with it, and
-    # silently drop `actions: read` (needed by codeql-action/upload-sarif).
     env:
       PUSH_IMAGE: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
     steps:
