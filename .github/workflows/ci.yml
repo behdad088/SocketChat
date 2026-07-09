@@ -47,6 +47,7 @@ jobs:
     outputs:
       shared: ${{ steps.changes.outputs.shared }}
       identity: ${{ steps.changes.outputs.identity }}
+      web: ${{ steps.changes.outputs.web }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -64,6 +65,8 @@ jobs:
               - '.github/workflows/_build-push.yml'
             identity:
               - 'src/Services/Identity/**'
+            web:
+              - 'src/web/**'
 
   identity:
     name: Identity API
@@ -82,6 +85,129 @@ jobs:
       image_tag_suffix: ${{ github.event.inputs.image_tag_suffix }}
     secrets: inherit
 
+  # Node/Docker, not .NET — builds and scans its own image inline rather than
+  # going through the dotnet-oriented _build-push.yml reusable workflow.
+  web:
+    name: Web
+    needs: detect
+    if: |
+      needs.detect.outputs.web == 'true' ||
+      github.event.inputs.force_all == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Inherits contents/actions/pull-requests/security-events/packages
+    # permissions from the workflow-level block above — a job-level
+    # `permissions:` here would replace rather than merge with it, and
+    # silently drop `actions: read` (needed by codeql-action/upload-sarif).
+    env:
+      PUSH_IMAGE: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        if: env.PUSH_IMAGE == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/socketchat-web
+          flavor: |
+            latest=false
+            suffix=${{ github.event.inputs.image_tag_suffix }},onlatest=true
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=ref,event=pr
+            type=ref,event=branch
+            type=sha,format=short
+
+      - name: Build image (PR — single-arch, load locally)
+        if: env.PUSH_IMAGE != 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: ./src/web
+          file: ./src/web/Dockerfile
+          push: false
+          load: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+          platforms: linux/amd64
+
+      - name: Build & push image (main — multi-arch)
+        if: env.PUSH_IMAGE == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: ./src/web
+          file: ./src/web/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+          platforms: linux/amd64,linux/arm64
+
+      - name: Resolve primary image ref for scan
+        id: img
+        run: |
+          REF=$(echo "${{ steps.meta.outputs.tags }}" | head -n1)
+          echo "ref=${REF}" >> "$GITHUB_OUTPUT"
+
+      - name: Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@master
+        if: always()
+        with:
+          image-ref: ${{ steps.img.outputs.ref }}
+          format: sarif
+          output: trivy.sarif
+          severity: 'CRITICAL,HIGH'
+          ignore-unfixed: true
+          exit-code: '0'
+
+      - name: Upload Trivy SARIF to code scanning
+        if: always() && hashFiles('trivy.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy.sarif
+          category: trivy-web
+
+      - name: Find existing image-tags PR comment
+        if: github.event_name == 'pull_request'
+        uses: peter-evans/find-comment@v3
+        id: fc
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: 'github-actions[bot]'
+          body-includes: "<!-- image-tags:web -->"
+
+      - name: Upsert PR comment with image tags
+        if: github.event_name == 'pull_request'
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          comment-id: ${{ steps.fc.outputs.comment-id }}
+          issue-number: ${{ github.event.pull_request.number }}
+          edit-mode: replace
+          body: |
+            <!-- image-tags:web -->
+            **web** — image built ${{ env.PUSH_IMAGE == 'true' && '& pushed' || '(not pushed; PR build)' }}
+
+            ```text
+            ${{ steps.meta.outputs.tags }}
+            ```
+
   # Aggregate gate so branch protection only needs to require one check.
   ci-success:
     name: CI success
@@ -90,6 +216,7 @@ jobs:
     needs:
       - detect
       - identity
+      - web
     if: always()
     steps:
       - name: Verify all required jobs succeeded or were skipped
