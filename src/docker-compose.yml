@@ -14,7 +14,15 @@
       - backend
       - data
       - observability
-  
+
+  web:
+    image: ${DOCKER_REGISTRY-}web
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    networks:
+      - backend
+
   mailpit:
     image: axllent/mailpit:latest
     networks:
