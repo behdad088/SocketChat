@@ -11,9 +11,7 @@ NOTE: Event handling is idempotent and order-tolerant: an incoming event whose `
 | Table                              | data             | Description |
 |------------------------------------|------------------|-------------|
 | `mt_doc_profiledocument`           | `Profile`        | Stores essential user information for the Chat Service, including user ID, username, and email. This table is updated via events from the Identity service to ensure data consistency and availability. |
-| `mt_doc_versionprofiledocument`    | `VersionProfile` | Stores a snapshot of the profile document for every change. This table keeps track of all the changes that happen to the profile document. |
 | `mt_doc_userchanneldocument`       | `UserChannel`    | One row per user per conversation. Holds the per-user view of a conversation (state, pin, read position). |
-| `mt_doc_userchannelversiondocument`| `UserChannelVersion` | Stores a snapshot of the user channel document for every change. |
 | `mt_doc_conversationdocument`      | `Conversation`   | Stores conversation-level information shared by all participants. |
 | `mt_doc_messagedocument`           | `Message`        | Stores the messages sent in a conversation. |
 | `mt_doc_messageversiondocument`    | `MessageVersion` | Stores a snapshot of the message document for every content edit. |
@@ -36,30 +34,12 @@ NOTE: Event handling is idempotent and order-tolerant: an incoming event whose `
 | Quote          | string   | yes        | user general message in the profile                                                    |
 | Version        | int      | no         | version number, incremented on every change                                            |
 
-NOTE: The `Version` field is used to track changes to the profile document. Each time a change is made, the version number is incremented, and a new entry is created in the `mt_doc_versionprofiledocument` table to record the change.
+NOTE: The `Version` field mirrors the version number from the Identity service events. It is used for event idempotency (see the note above) — no change history is kept for profiles in the Chat Service. The Identity service owns the user data and its audit trail.
 
 NOTE: The online status will be stored in the cache and will be written to the profile document (`LastOnline`) when the user goes offline.
 
 **Access patterns**
 *  **Id**: Retrieve the profile document by user ID.
-
-
-`mt_doc_versionprofiledocument`
-
-| Field          | Type     | IsNullable | description                                                                            |
-|----------------|----------|------------|----------------------------------------------------------------------------------------|
-| Id             | string   | no         | {guid}:{version_id}, example:  `d9360022-d706-4670-bf05-6c7e0a043732:1`                |
-| Username       | string   | no         | username of the user                                                                   |
-| Firstname      | string   | no         | user firstname                                                                         |
-| Lastname       | string   | no         | user lastname                                                                          |
-| DisplayName    | string   | yes        | If the display name is null, the app can pick firstname and lastname as display name   |
-| Email          | string   | no         | user email address                                                                     |
-| PhoneNumber    | string   | no         | user phone number                                                                      |
-| ProfilePicture | string   | yes        | user profile picture                                                                   |
-| IsActive       | boolean  | yes        | whether the user account is active                                                     |
-| LastOnline     | datetime | yes        | UTC timestamp                                                                          |
-| Quote          | string   | yes        | user general message in the profile                                                    |
-| Version        | int      | no         | version number this snapshot corresponds to                                            |
 
 # User Channel Document
 This table marks the channel between two users; it will be used to retrieve the conversation between two users. The table will be updated when a new conversation is created between two users.
@@ -82,7 +62,7 @@ Each user owns their own row, so per-user preferences (state, pin, read position
 | IsPinned          | boolean  | no         | true if the conversation is pinned                                                                                       |
 | LastReadMessageId | string   | yes        | ULID of the last message this user has read. Unread messages are those with Id > LastReadMessageId. Null = nothing read. |
 | LastMessageAt     | datetime | yes        | UTC timestamp of the latest message in the conversation, denormalized here so the chat list can be sorted by recency.    |
-| Version           | int      | no         | version number, incremented on every change                                                                              |
+| Version           | int      | no         | version number, used for optimistic concurrency — no change history is kept for channel documents                        |
 
 NOTE: Read state is tracked with `LastReadMessageId` rather than a per-message status. Marking a conversation as read is a single write to this row, and because message IDs are ULIDs (lexicographically sortable by time), the unread count is simply the number of messages with `Id > LastReadMessageId` sent by the other participant.
 
@@ -95,19 +75,6 @@ NOTE: `LastMessageAt` is duplicated from the Conversation document onto both par
 **indexes**
 *  **Id**: primary key
 *  **(UserId, LastMessageAt)**: composite secondary index to list a user's conversations ordered by recency.
-
-`mt_doc_userchannelversiondocument`
-
-| Field             | Type     | IsNullable | description                                                                                                                               |
-|-------------------|----------|------------|---------------------------------------------------------------------------------------------------------------------------------------------|
-| Id                | string   | no         | {user_id}:{peer_user_id}:{version_id}, example:  `d9360022-d706-4670-bf05-6c7e0a043732:3d7babc6-b1ed-485c-b598-82d607ee7b4d:1`            |
-| ConversationId    | string   | no         | conversation id, example:  `01KX6WMD905AN68KKFWQVDNCHZ`                                                                                   |
-| UserId            | string   | no         | id of the user who owns this row, example:  `d9360022-d706-4670-bf05-6c7e0a043732`                                                        |
-| State             | string   | yes        | active, muted or archived                                                                                                                 |
-| IsPinned          | boolean  | no         | true if the conversation is pinned                                                                                                        |
-| Version           | int      | no         | version number this snapshot corresponds to                                                                                               |
-
-NOTE: Changes to `LastReadMessageId` and `LastMessageAt` do NOT increment `Version` or create a version snapshot — they change on nearly every message and would flood this table. Only user preference changes (State, IsPinned) are versioned.
 
 # Conversation Document
 This table stores the conversation channel information shared by all participants, like the participant list. The table will be updated when a new message is sent in the conversation.
@@ -177,3 +144,18 @@ NOTE: Adding or removing a reaction does NOT increment `Version` or create a ver
 | UpdatedAt      | datetime | yes        | UTC timestamp of the last content edit                             |
 | IsEdited       | boolean  | no         | true if the content has been edited                                |
 | Version        | int      | no         | version number this snapshot corresponds to                        |
+
+# Data Deletion (PII)
+
+The Chat Service stores PII only in the Profile document (names, email, phone number, profile picture). Everything else references users by opaque GUIDs.
+
+When the Identity service publishes a **UserDeleted** event, the Chat Service:
+
+1. **Deletes the profile document** (`mt_doc_profiledocument`) for that user; this removes all PII held by the Chat Service.
+2. **Deletes the user's channel rows** (`mt_doc_userchanneldocument` where `UserId` = deleted user); their chat list is gone.
+3. **Keeps conversations and messages intact.** The other participant keeps their conversation history. `Participants` and `SenderId` still contain the deleted user's GUID, which is not PII on its own; clients render it as "Deleted user" when no profile document is found for the id.
+4. **Message content authored by the deleted user is retained** (including entries in `mt_doc_messageversiondocument`). Messages belong to the conversation, not the account; the same rule chat products generally apply. If a stricter erasure policy is ever required, the follow-up would be to null out `Content` on the deleted user's messages and purge their message version snapshots.
+
+Like profile updates, the deletion handler must be idempotent: receiving UserDeleted for an already-deleted user is a no-op.
+
+NOTE: This is why profile change history is not stored in the Chat Service; append-only snapshots of PII would make erasure significantly harder. The Identity service owns user data history and its own deletion obligations.
