@@ -53,16 +53,18 @@ Each user owns their own row, so per-user preferences (state, pin, read position
 ## schema
 `mt_doc_userchanneldocument`
 
-| Field             | Type     | IsNullable | description                                                                                                              |
-|-------------------|----------|------------|----------------------------------------------------------------------------------------------------------------------------|
-| Id                | string   | no         | {user_id}:{peer_user_id}, example:  `d9360022-d706-4670-bf05-6c7e0a043732:3d7babc6-b1ed-485c-b598-82d607ee7b4d`          |
-| ConversationId    | string   | no         | conversation id, example:  `01KX6WMD905AN68KKFWQVDNCHZ`                                                                  |
-| UserId            | string   | no         | id of the user who owns this row, example:  `d9360022-d706-4670-bf05-6c7e0a043732`                                       |
-| State             | string   | yes        | active, muted or archived                                                                                                |
-| IsPinned          | boolean  | no         | true if the conversation is pinned                                                                                       |
-| LastReadMessageId | string   | yes        | ULID of the last message this user has read. Unread messages are those with Id > LastReadMessageId. Null = nothing read. |
-| LastMessageAt     | datetime | yes        | UTC timestamp of the latest message in the conversation, denormalized here so the chat list can be sorted by recency.    |
-| Version           | int      | no         | version number, used for optimistic concurrency — no change history is kept for channel documents                        |
+| Field               | Type     | IsNullable | description                                                                                                              |
+|---------------------|----------|------------|--------------------------------------------------------------------------------------------------------------------------|
+| Id                  | string   | no         | {user_id}:{peer_user_id}, example:  `d9360022-d706-4670-bf05-6c7e0a043732:3d7babc6-b1ed-485c-b598-82d607ee7b4d`          |
+| ConversationId      | string   | no         | conversation id, example:  `01KX6WMD905AN68KKFWQVDNCHZ`                                                                  |
+| UserId              | string   | no         | id of the user who owns this row, example:  `d9360022-d706-4670-bf05-6c7e0a043732`                                       |
+| State               | string   | yes        | active, muted or archived                                                                                                |
+| IsPinned            | boolean  | no         | true if the conversation is pinned                                                                                       |
+| LastReadMessageId   | string   | yes        | ULID of the last message this user has read. Unread messages are those with Id > LastReadMessageId. Null = nothing read. |
+| LastMessageAt       | datetime | yes        | UTC timestamp of the latest message in the conversation, denormalized here so the chat list can be sorted by recency.    |
+| LatestMessageBody   | string   | yes        | The latest message in the channel.                                                                                       |
+| TotalUnreadMessages | int      | no         | The total unread messages since the last read (LastReadMessageId). default is set to 0                                   |
+| Version             | int      | no         | version number, used for optimistic concurrency; no change history is kept for channel documents                         |
 
 NOTE: Read state is tracked with `LastReadMessageId` rather than a per-message status. Marking a conversation as read is a single write to this row, and because message IDs are ULIDs (lexicographically sortable by time), the unread count is simply the number of messages with `Id > LastReadMessageId` sent by the other participant.
 
@@ -102,20 +104,20 @@ This table stores the messages sent in a conversation. The table will be updated
 ## schema
 `mt_doc_messagedocument`
 
-| Field          | Type     | IsNullable | description                                                        |
-|----------------|----------|------------|--------------------------------------------------------------------|
-| Id             | string   | no         | {message_id}, example: `01KX6Y4MJQ9512TXYZB2CTHGP5`                |
-| ConversationId | string   | no         | conversation id, example:  `01KX6WMD905AN68KKFWQVDNCHZ`            |
-| SenderId       | string   | no         | user id of the sender                                              |
-| Content        | string   | no         | the content of the message                                         |
-| RepliedTo      | string   | yes        | the message id this message responds to. Can be null               |
-| Reactions      | array    | yes        | array of reaction objects: `{ userId, emoji, createdAt }`          |
-| CreatedAt      | datetime | no         | UTC timestamp                                                      |
-| UpdatedAt      | datetime | yes        | UTC timestamp of the last content edit                             |
-| IsEdited       | boolean  | no         | true if the content has been edited                                |
-| IsDeleted      | boolean  | no         | true if the message has been deleted (soft delete)                 |
-| DeletedAt      | datetime | yes        | UTC timestamp of deletion. Null if not deleted                     |
-| Version        | int      | no         | version number, incremented on every content edit                  |
+| Field          | Type                    | IsNullable | description                                               |
+|----------------|-------------------------|------------|-----------------------------------------------------------|
+| Id             | string                  | no         | {message_id}, example: `01KX6Y4MJQ9512TXYZB2CTHGP5`       |
+| ConversationId | string                  | no         | conversation id, example:  `01KX6WMD905AN68KKFWQVDNCHZ`   |
+| SenderId       | string                  | no         | user id of the sender                                     |
+| Content        | string                  | no         | the content of the message                                |
+| RepliedTo      | string                  | yes        | the message id this message responds to. Can be null      |
+| Reactions      | array of [user](#user)  | yes        | array of reaction objects: `{ userId, emoji, createdAt }` |
+| CreatedAt      | datetime                | no         | UTC timestamp                                             |
+| UpdatedAt      | datetime                | yes        | UTC timestamp of the last content edit                    |
+| IsEdited       | boolean                 | no         | true if the content has been edited                       |
+| IsDeleted      | boolean                 | no         | true if the message has been deleted (soft delete)        |
+| DeletedAt      | datetime                | yes        | UTC timestamp of deletion. Null if not deleted            |
+| Version        | int                     | no         | version number, incremented on every content edit         |
 
 NOTE: Messages are soft-deleted: `IsDeleted` is set to true and `Content` is cleared, so clients can render a "message deleted" placeholder and replies to the message stay resolvable.
 
@@ -159,3 +161,11 @@ When the Identity service publishes a **UserDeleted** event, the Chat Service:
 Like profile updates, the deletion handler must be idempotent: receiving UserDeleted for an already-deleted user is a no-op.
 
 NOTE: This is why profile change history is not stored in the Chat Service; append-only snapshots of PII would make erasure significantly harder. The Identity service owns user data history and its own deletion obligations.
+
+
+### User
+| Field          | Type | IsNullable | description |
+|----------------|------|------------|-------------|
+| UserId         | string | no | user id of the user |
+| Emoji          | string | no | the emoji used for the reaction |
+| CreatedAt      | datetime | no | UTC timestamp of when the reaction was added |
