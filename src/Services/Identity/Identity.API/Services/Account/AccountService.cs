@@ -191,6 +191,57 @@ public class AccountService : IAccountService
         return AccountOperationResult.Success();
     }
 
+    public async Task<AccountOperationResult<UserProfile>> GetProfileAsync(string userId)
+    {
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user is null)
+        {
+            return AccountOperationResult<UserProfile>.Failure(AccountErrorCode.NotFound, "User not found.");
+        }
+
+        return AccountOperationResult<UserProfile>.Success(ToProfile(user));
+    }
+
+    public async Task<AccountOperationResult<UserProfile>> UpdateProfileAsync(
+        string userId, 
+        int expectedVersion, 
+        string? name,
+        string? lastName,
+        string profilePicture)
+    {
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user is null)
+        {
+            return AccountOperationResult<UserProfile>.Failure(AccountErrorCode.NotFound, "User not found.");
+        }
+
+        if (user.Version != expectedVersion)
+        {
+            return AccountOperationResult<UserProfile>.Failure(
+                AccountErrorCode.ConcurrencyConflict, "The profile has been modified by another request.");
+        }
+
+        user.Name = name;
+        user.LastName = lastName;
+        user.ProfilePicture = profilePicture;
+
+        var result = await _userManager.UpdateAsync(user);
+        if (!result.Succeeded)
+        {
+            return result.Errors.Any(e => e.Code == "ConcurrencyFailure")
+                ? AccountOperationResult<UserProfile>.Failure(
+                    AccountErrorCode.ConcurrencyConflict, "The profile has been modified by another request.")
+                : AccountOperationResult<UserProfile>.Failure(
+                    AccountErrorCode.ValidationFailed,
+                    result.Errors.Select(e => e.Description).ToArray());
+        }
+
+        return AccountOperationResult<UserProfile>.Success(ToProfile(user));
+    }
+
+    private static UserProfile ToProfile(ApplicationUser user) =>
+        new(user.UserName!, user.Email!, user.Name, user.LastName, user.ProfilePicture, user.Version);
+
     private static (AccountErrorCode Code, string Message)? ValidateVerificationCode(VerificationCode? verificationCode)
     {
         if (verificationCode is null)

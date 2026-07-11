@@ -8,7 +8,8 @@ public enum AccountErrorCode
     NotFound,
     InvalidCode,
     ExpiredCode,
-    AlreadyActivated
+    AlreadyActivated,
+    ConcurrencyConflict
 }
 
 public sealed class AccountOperationResult

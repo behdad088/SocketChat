@@ -8,6 +8,7 @@ using Identity.API.Models;
 using Identity.API.Services;
 using Identity.API.Services.EmailService;
 using Identity.API.Endpoints;
+using Identity.API.Middlewares;
 using Identity.API.Services.Account;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
@@ -64,6 +65,13 @@ internal static class HostingExtensions
                 o.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
                 o.QueueLimit = 0;
             });
+            options.AddFixedWindowLimiter("profile", o =>
+            {
+                o.PermitLimit = 10;
+                o.Window = TimeSpan.FromMinutes(1);
+                o.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+                o.QueueLimit = 0;
+            });
         });
         builder.Services.AddMailTrapServicesApiClient(builder.Configuration);
 
@@ -106,6 +114,10 @@ internal static class HostingExtensions
         if (builder.Environment.IsDevelopment())
             identityServerBuilder.AddDeveloperSigningCredential();
 
+        // Accept this IdentityServer's own access tokens on local API endpoints
+        // (scheme + "IdentityServerAccessToken" authorization policy).
+        builder.Services.AddLocalApiAuthentication();
+
         builder.Services.AddTransient<IProfileService, ProfileService>();
         builder.Services.AddTransient<IVerificationEmailService, MailKitService>();
         builder.Services.AddScoped<IAccountService, AccountService>();
@@ -137,6 +149,7 @@ internal static class HostingExtensions
         app.UseStaticFiles();
         app.UseRouting();
         app.UseRateLimiter();
+        app.UseMiddleware<UserInfoVersionMiddleware>();
         app.UseIdentityServer();
         app.UseAuthorization();
 

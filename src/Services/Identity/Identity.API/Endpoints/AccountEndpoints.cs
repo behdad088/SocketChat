@@ -1,3 +1,6 @@
+using System.Globalization;
+using System.Security.Claims;
+using Duende.IdentityServer;
 using Identity.API.Services.Account;
 
 namespace Identity.API.Endpoints;
@@ -30,6 +33,15 @@ public static class AccountEndpoints
         group.MapPost("/email-verification", VerifyEmailAsync)
             .AddEndpointFilter<ValidationFilter<VerifyEmailRequest>>()
             .RequireRateLimiting("email-verification");
+
+        group.MapGet("/profile", GetProfileAsync)
+            .RequireAuthorization(IdentityServerConstants.LocalApi.PolicyName)
+            .RequireRateLimiting("profile");
+
+        group.MapPut("/profile", UpdateProfileAsync)
+            .AddEndpointFilter<ValidationFilter<UpdateProfileRequest>>()
+            .RequireAuthorization(IdentityServerConstants.LocalApi.PolicyName)
+            .RequireRateLimiting("profile");
 
         return app;
     }
@@ -122,6 +134,98 @@ public static class AccountEndpoints
         }
 
         return Results.Ok(new MessageResponse("Your email has been successfully verified!"));
+    }
+
+    private static async Task<IResult> GetProfileAsync(
+        ClaimsPrincipal principal, HttpResponse response, IAccountService accountService)
+    {
+        var userId = principal.FindFirstValue("sub");
+        if (string.IsNullOrEmpty(userId))
+        {
+            return Results.Unauthorized();
+        }
+
+        var result = await accountService.GetProfileAsync(userId);
+        if (!result.Succeeded)
+        {
+            return MapProfileError(result.ErrorCode, result.Errors);
+        }
+
+        var profile = result.Value!;
+        response.Headers.ETag = $"\"{profile.Version}\"";
+        return Results.Ok(new ProfileResponse(
+            profile.UserName, profile.Email, profile.Name, profile.LastName, profile.ProfilePicture));
+    }
+
+    private static async Task<IResult> UpdateProfileAsync(
+        UpdateProfileRequest request,
+        ClaimsPrincipal principal,
+        HttpRequest httpRequest,
+        HttpResponse httpResponse,
+        IAccountService accountService)
+    {
+        var userId = principal.FindFirstValue("sub");
+        if (string.IsNullOrEmpty(userId))
+        {
+            return Results.Unauthorized();
+        }
+
+        if (!TryParseETagVersion(httpRequest.Headers.IfMatch.ToString(), out var expectedVersion))
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status428PreconditionRequired,
+                title: "Missing precondition",
+                detail: "Send the profile's current version in the If-Match header, e.g. If-Match: \"3\".");
+        }
+
+        var result = await accountService.UpdateProfileAsync(
+            userId, expectedVersion, request.Name, request.LastName, request.ProfilePicture);
+
+        if (!result.Succeeded)
+        {
+            return MapProfileError(result.ErrorCode, result.Errors);
+        }
+
+        var profile = result.Value!;
+        httpResponse.Headers.ETag = $"\"{profile.Version}\"";
+        return Results.Ok(new ProfileResponse(
+            profile.UserName, profile.Email, profile.Name, profile.LastName, profile.ProfilePicture));
+    }
+
+    private static bool TryParseETagVersion(string? etag, out int version)
+    {
+        version = 0;
+        if (string.IsNullOrWhiteSpace(etag))
+        {
+            return false;
+        }
+
+        var trimmed = etag.Trim();
+        if (trimmed.Length < 2 || trimmed[0] != '"' || trimmed[^1] != '"')
+        {
+            return false;
+        }
+
+        return int.TryParse(trimmed[1..^1], NumberStyles.None, CultureInfo.InvariantCulture, out version);
+    }
+
+    private static IResult MapProfileError(AccountErrorCode errorCode, IReadOnlyList<string> errors)
+    {
+        return errorCode switch
+        {
+            AccountErrorCode.NotFound => Results.Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "User not found",
+                detail: string.Join(" ", errors)),
+            AccountErrorCode.ConcurrencyConflict => Results.Problem(
+                statusCode: StatusCodes.Status412PreconditionFailed,
+                title: "Profile has changed",
+                detail: string.Join(" ", errors)),
+            _ => Results.Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Profile update failed",
+                detail: string.Join(" ", errors))
+        };
     }
 
     private static IResult MapCodeError(AccountErrorCode errorCode, IReadOnlyList<string> errors)

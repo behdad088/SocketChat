@@ -55,3 +55,16 @@ public record VerifyEmailRequest
     [Required]
     public string Code { get; init; } = string.Empty;
 }
+
+public record UpdateProfileRequest
+{
+    [MaxLength(50)]
+    public string? Name { get; init; }
+
+    [MaxLength(50)]
+    public string? LastName { get; init; }
+
+    [Required(AllowEmptyStrings = true)]
+    [MaxLength(2048)]
+    public string ProfilePicture { get; init; } = string.Empty;
+}

@@ -13,7 +13,9 @@ public class ApplicationUser : IdentityUser
     public string? Name { get; set; }
     [MaxLength(50)]
     public string? LastName { get; set; }
-    
+
+    public int Version { get; set; }
+
     public ICollection<VerificationCode> EmailVerifications { get; set; } = new List<VerificationCode>();
 
 }

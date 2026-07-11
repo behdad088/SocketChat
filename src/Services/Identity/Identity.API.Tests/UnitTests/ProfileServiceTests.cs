@@ -23,7 +23,7 @@ public class ProfileServiceTests
             Substitute.For<IRoleStore<IdentityRole>>(),
             null, null, null, null);
 
-        _sut = new ProfileService(_userManager, _roleManager);
+        _sut = new ProfileService(_userManager, _roleManager, Substitute.For<Microsoft.AspNetCore.Http.IHttpContextAccessor>());
     }
 
     [Fact]
