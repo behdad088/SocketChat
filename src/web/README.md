@@ -1,32 +1,30 @@
-# React + TypeScript + Vite
+# SocketChat Web
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+The SocketChat web frontend: a React 19 + TypeScript + Vite SPA. Currently
+ships the auth UI shell — `/login`, `/register`, `/forgot-password` (public)
+and `/` (protected, placeholder home page) — routed with `react-router-dom`.
+Forms are UI-only for now: submitting does nothing, and there's no real
+authentication yet.
 
-Currently, two official plugins are available:
+To view the protected `/` page without a backend, set a fake token in the
+browser devtools console:
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```js
+localStorage.setItem('access_token', 'fake')
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Any truthy value in `access_token` satisfies the route guard; removing it
+(or clearing localStorage) bounces you back to `/login`.
+
+## Commands
+
+- `npm run dev` — start the Vite dev server with HMR.
+- `npm run lint` — run Oxlint.
+- `npm run build` — type-check (`tsc -b`) and build for production into `dist/`.
+
+## Vite template notes
+
+This project started from the standard Vite React + TypeScript template. If
+you need type-aware lint rules, see the
+[Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules)
+and edit `.oxlintrc.json`.
