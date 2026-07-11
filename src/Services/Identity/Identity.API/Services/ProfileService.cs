@@ -1,8 +1,10 @@
 using System.Security.Claims;
 using Duende.IdentityModel;
+using Duende.IdentityServer;
 using Duende.IdentityServer.Extensions;
 using Duende.IdentityServer.Models;
 using Duende.IdentityServer.Services;
+using Identity.API.Middlewares;
 using Identity.API.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.JsonWebTokens;
@@ -13,15 +15,18 @@ public class ProfileService : IProfileService
 {
     public ProfileService(
         UserManager<ApplicationUser> userManager,
-        RoleManager<IdentityRole> roleManager)
+        RoleManager<IdentityRole> roleManager,
+        IHttpContextAccessor httpContextAccessor)
     {
         _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
         _roleManager = roleManager ?? throw new ArgumentNullException(nameof(roleManager));
+        _httpContextAccessor = httpContextAccessor ?? throw new ArgumentNullException(nameof(httpContextAccessor));
     }
-    
+
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly RoleManager<IdentityRole> _roleManager;
-    
+    private readonly IHttpContextAccessor _httpContextAccessor;
+
     public async Task GetProfileDataAsync(ProfileDataRequestContext context)
     {
         var subject = context.Subject ?? throw new ArgumentNullException(nameof(context.Subject));
@@ -32,6 +37,18 @@ public class ProfileService : IProfileService
         if (user == null)
             throw new ArgumentException("Invalid subject identifier");
         var userClaims = GetClaimsFromUser(user);
+
+        if (context.Caller == IdentityServerConstants.ProfileDataCallers.UserInfoEndpoint)
+        {
+            // Issued live per userinfo request only; never into id/access
+            // tokens, where the value would go stale for the token's lifetime.
+            userClaims = userClaims.Append(new Claim("version", user.Version.ToString()));
+
+            if (_httpContextAccessor.HttpContext is { } httpContext)
+            {
+                httpContext.Items[UserInfoVersionMiddleware.VersionItemKey] = user.Version;
+            }
+        }
 
         IEnumerable<Claim> roleClaims = [];
         

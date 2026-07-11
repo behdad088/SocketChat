@@ -39,7 +39,8 @@ public static class Config
 
     public static IEnumerable<ApiScope> ApiScopes =>
     [
-        new(ScopeNames.Chat, "Chat Service")
+        new(ScopeNames.Chat, "Chat Service"),
+        new(IdentityServerConstants.LocalApi.ScopeName, "Identity API")
     ];
 
     public static IEnumerable<ApiResource> ApiResources =>
@@ -66,7 +67,8 @@ public static class Config
             {
                 IdentityServerConstants.StandardScopes.OpenId,
                 IdentityServerConstants.StandardScopes.Profile,
-                ScopeNames.Chat
+                ScopeNames.Chat,
+                IdentityServerConstants.LocalApi.ScopeName
             },
             AllowAccessTokensViaBrowser = true,
             AllowOfflineAccess = true
@@ -82,7 +84,8 @@ public static class Config
             {
                 IdentityServerConstants.StandardScopes.OpenId,
                 IdentityServerConstants.StandardScopes.Profile,
-                ScopeNames.Chat
+                ScopeNames.Chat,
+                IdentityServerConstants.LocalApi.ScopeName
             },
             AllowOfflineAccess = true
         },
@@ -96,7 +99,8 @@ public static class Config
             {
                 IdentityServerConstants.StandardScopes.OpenId,
                 IdentityServerConstants.StandardScopes.Profile,
-                ScopeNames.Chat
+                ScopeNames.Chat,
+                IdentityServerConstants.LocalApi.ScopeName
             }
         }
     ];
