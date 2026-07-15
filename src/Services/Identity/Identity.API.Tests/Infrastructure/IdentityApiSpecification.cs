@@ -8,19 +8,22 @@ public class IdentityApiSpecification : IAsyncLifetime
     private readonly WebApiContainerFactory _webApiContainer = new();
     public ApiFactory? _factory;
     private string? _postgresConnectionString;
+    private string? _rabbitMqUri;
     public FakeVerificationEmailService EmailSpy { get; private set; } = null!;
+    public string PostgresConnectionString => _postgresConnectionString!;
+    public string RabbitMqAmqpUri => _webApiContainer.RabbitMqAmqpUri;
 
     public async Task InitializeAsync()
     {
         await _webApiContainer.InitializeAsync();
         _postgresConnectionString = _webApiContainer.PostgresConnectionString;
-        
-        _factory = new ApiFactory(
-            _webApiContainer.PostgresConnectionString);
-        
+        _rabbitMqUri = _webApiContainer.RabbitMqUri;
+
+        _factory = new ApiFactory(_postgresConnectionString, _rabbitMqUri);
+
         await Task.CompletedTask;
     }
-    
+
     private HttpClient? _httpClient;
     internal HttpClient HttpClient
     {
@@ -37,7 +40,7 @@ public class IdentityApiSpecification : IAsyncLifetime
         if (createFreshClient)
         {
             _factory?.Dispose();
-            _factory = new ApiFactory(_postgresConnectionString!);
+            _factory = new ApiFactory(_postgresConnectionString!, _rabbitMqUri!);
         }
 
         var client = _factory!.CreateClient(new WebApplicationFactoryClientOptions

@@ -7,7 +7,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Identity.API.Tests.Infrastructure;
 
-public class ApiFactory(string postgresConnection) : WebApplicationFactory<Program>
+public class ApiFactory(string postgresConnection, string rabbitMqUri) : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -21,6 +21,12 @@ public class ApiFactory(string postgresConnection) : WebApplicationFactory<Progr
         // Used by VerificationEmailService.EmailVerificationLink – not needed since we use the fake,
         // but set it so the real service doesn't throw if resolved accidentally.
         Environment.SetEnvironmentVariable("service_url", "http://localhost");
+
+        Environment.SetEnvironmentVariable("RabbitMQ__Uri", rabbitMqUri);
+        Environment.SetEnvironmentVariable("RabbitMQ__Username", "rabbitmq");
+        Environment.SetEnvironmentVariable("RabbitMQ__Password", "rabbitmq");
+        Environment.SetEnvironmentVariable("Outbox__PollIntervalSeconds", "1");
+        Environment.SetEnvironmentVariable("Outbox__PublishTimeoutSeconds", "2");
 
         builder.UseEnvironment("Development");
 
