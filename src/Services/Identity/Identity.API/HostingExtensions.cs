@@ -8,6 +8,7 @@ using Identity.API.Models;
 using Identity.API.Services;
 using Identity.API.Services.EmailService;
 using Identity.API.Endpoints;
+using Identity.API.Messaging;
 using Identity.API.Middlewares;
 using Identity.API.Services.Account;
 using Microsoft.AspNetCore.Identity;
@@ -83,6 +84,8 @@ internal static class HostingExtensions
             .PersistKeysToDbContext<ApplicationDbContext>();
 
         builder.Services.AddDbSeeder<ApplicationDbContext, UsersSeed>();
+
+        builder.Services.AddEventPublishing(builder.Configuration);
 
         builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
             .AddEntityFrameworkStores<ApplicationDbContext>()

@@ -1,6 +1,8 @@
 using System.Security.Claims;
 using Duende.IdentityModel;
 using Identity.API.Data;
+using Identity.API.Messaging.Events;
+using Identity.API.Messaging.Outbox;
 using Identity.API.Models;
 using Identity.API.Services.EmailService;
 using Microsoft.AspNetCore.Identity;
@@ -13,15 +15,18 @@ public class AccountService : IAccountService
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly IVerificationEmailService _verificationEmailService;
     private readonly ApplicationDbContext _dbContext;
+    private readonly IOutboxWriter _outboxWriter;
 
     public AccountService(
         UserManager<ApplicationUser> userManager,
         IVerificationEmailService verificationEmailService,
-        ApplicationDbContext dbContext)
+        ApplicationDbContext dbContext,
+        IOutboxWriter outboxWriter)
     {
         _userManager = userManager;
         _verificationEmailService = verificationEmailService;
         _dbContext = dbContext;
+        _outboxWriter = outboxWriter;
     }
 
     public async Task<AccountOperationResult<RegisteredAccount>> RegisterAsync(
@@ -45,6 +50,10 @@ public class AccountService : IAccountService
             Name = string.IsNullOrEmpty(displayName) ? email.Split('@')[0] : displayName
         };
 
+        // UserManager saves after every operation, so an explicit transaction is
+        // the only way to commit the user + role + claims + outbox row atomically.
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync();
+
         var createResult = await _userManager.CreateAsync(user, password);
         if (!createResult.Succeeded)
         {
@@ -65,6 +74,11 @@ public class AccountService : IAccountService
         {
             throw new InvalidOperationException(claimsResult.Errors.First().Description);
         }
+
+        var occurredAt = DateTimeOffset.UtcNow;
+        _outboxWriter.Enqueue(UserCreatedEvent.FromUser(user, occurredAt), occurredAt);
+        await _dbContext.SaveChangesAsync();
+        await transaction.CommitAsync();
 
         await _verificationEmailService.SendEmailAsync(user.Email, user.Id, EmailType.EmailVerification);
 
@@ -176,6 +190,9 @@ public class AccountService : IAccountService
         }
 
         user.EmailConfirmed = true;
+
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync();
+
         var result = await _userManager.UpdateAsync(user);
         if (!result.Succeeded)
         {
@@ -186,7 +203,13 @@ public class AccountService : IAccountService
 
         verificationCode.IsActivated = true;
         _dbContext.VerificationCodes.Update(verificationCode);
+
+        // user.Version was already incremented in memory by the SaveChanges
+        // override inside UpdateAsync, so the event carries the new version.
+        var occurredAt = DateTimeOffset.UtcNow;
+        _outboxWriter.Enqueue(UserUpdatedEvent.FromUser(user, occurredAt), occurredAt);
         await _dbContext.SaveChangesAsync();
+        await transaction.CommitAsync();
 
         return AccountOperationResult.Success();
     }
@@ -225,6 +248,8 @@ public class AccountService : IAccountService
         user.LastName = lastName;
         user.ProfilePicture = profilePicture;
 
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync();
+
         var result = await _userManager.UpdateAsync(user);
         if (!result.Succeeded)
         {
@@ -235,6 +260,11 @@ public class AccountService : IAccountService
                     AccountErrorCode.ValidationFailed,
                     result.Errors.Select(e => e.Description).ToArray());
         }
+
+        var occurredAt = DateTimeOffset.UtcNow;
+        _outboxWriter.Enqueue(UserUpdatedEvent.FromUser(user, occurredAt), occurredAt);
+        await _dbContext.SaveChangesAsync();
+        await transaction.CommitAsync();
 
         return AccountOperationResult<UserProfile>.Success(ToProfile(user));
     }

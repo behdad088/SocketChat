@@ -36,7 +36,25 @@ services:
       MP_DATABASE: /data/mailpit.db
       MP_SMTP_AUTH_ACCEPT_ANY: 1
       MP_SMTP_AUTH_ALLOW_INSECURE: 1
-  
+
+  rabbitmq:
+    container_name: rabbitmq
+    restart: unless-stopped
+    environment:
+      - RABBITMQ_DEFAULT_USER=socketchat
+      - RABBITMQ_DEFAULT_PASS=socketchat
+    healthcheck:
+      test: [ "CMD", "rabbitmq-diagnostics", "-q", "ping" ]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+
   identity.api:
     container_name: identity.api
     restart: unless-stopped
@@ -58,12 +76,17 @@ services:
       - EmailService__authentication_key # your mailtrap authentication key, I added mine to .env file
       - service_url=https://localhost:7063 # identity api url in docker
       - Logger__elasticsearch=http://elasticsearch:9200
+      - RabbitMQ__Uri=rabbitmq://rabbitmq:5672
+      - RabbitMQ__Username=socketchat
+      - RabbitMQ__Password=socketchat
       - OTEL_EXPORTER_JAEGER_AGENT_HOST=jaeger
       - OTEL_EXPORTER_JAEGER_AGENT_PORT=6831
       - OTEL_EXPORTER_JAEGER_ENDPOINT=http://jaeger:14268/api/traces
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
     depends_on:
       identityDb:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     ports:
       - "7000:8080"

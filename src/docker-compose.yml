@@ -27,7 +27,12 @@
     image: axllent/mailpit:latest
     networks:
       - data
-  
+
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    networks:
+      - data
+
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:7.17.27
     networks:
@@ -70,3 +75,4 @@ volumes:
   postgres_identity_db:
   mailpit_data:
   elasticsearch-data:
+  rabbitmq_data:
