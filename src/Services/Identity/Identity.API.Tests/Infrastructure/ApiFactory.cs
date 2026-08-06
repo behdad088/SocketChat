@@ -21,6 +21,7 @@ public class ApiFactory(string postgresConnection, string rabbitMqUri) : WebAppl
         // Used by VerificationEmailService.EmailVerificationLink – not needed since we use the fake,
         // but set it so the real service doesn't throw if resolved accidentally.
         Environment.SetEnvironmentVariable("service_url", "http://localhost");
+        Environment.SetEnvironmentVariable("web_url", "http://localhost");
 
         Environment.SetEnvironmentVariable("RabbitMQ__Uri", rabbitMqUri);
         Environment.SetEnvironmentVariable("RabbitMQ__Username", "rabbitmq");

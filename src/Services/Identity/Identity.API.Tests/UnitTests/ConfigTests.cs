@@ -35,6 +35,18 @@ public class ConfigTests
         var ids = Config.Clients.Select(c => c.ClientId).ToList();
         ids.ShouldContain("postman-client");
         ids.ShouldContain("postman-client-password");
+        ids.ShouldContain("web-client");
+    }
+
+    [Fact]
+    public void WebClient_uses_password_grant_with_rotating_refresh_tokens()
+    {
+        var client = Config.Clients.Single(c => c.ClientId == "web-client");
+        client.AllowedGrantTypes.ShouldContain(GrantType.ResourceOwnerPassword);
+        client.RequireClientSecret.ShouldBeFalse();
+        client.AllowOfflineAccess.ShouldBeTrue();
+        client.RefreshTokenUsage.ShouldBe(TokenUsage.OneTimeOnly);
+        client.AllowedScopes.ShouldContain("chat");
     }
 
     [Fact]
