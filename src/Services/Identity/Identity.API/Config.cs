@@ -91,6 +91,25 @@ public static class Config
         },
         new Client
         {
+            ClientId = "web-client",
+            AllowedGrantTypes = GrantTypes.ResourceOwnerPassword,
+            RequirePkce = false,
+            RequireClientSecret = false,
+            AllowedScopes =
+            {
+                IdentityServerConstants.StandardScopes.OpenId,
+                IdentityServerConstants.StandardScopes.Profile,
+                ScopeNames.Chat,
+                IdentityServerConstants.LocalApi.ScopeName
+            },
+            AllowOfflineAccess = true,
+            // Rotate refresh tokens on every use so a leaked token dies on first replay
+            RefreshTokenUsage = TokenUsage.OneTimeOnly,
+            RefreshTokenExpiration = TokenExpiration.Sliding,
+            AccessTokenLifetime = 3600
+        },
+        new Client
+        {
             ClientId = "device-client",
             AllowedGrantTypes = GrantTypes.DeviceFlow,
             RequireClientSecret = false,

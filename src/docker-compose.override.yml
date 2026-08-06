@@ -75,6 +75,7 @@ services:
       - EmailService__sender=no-reply@socketchatx.dev
       - EmailService__authentication_key # your mailtrap authentication key, I added mine to .env file
       - service_url=https://localhost:7063 # identity api url in docker
+      - web_url=http://localhost:3000 # web SPA url used in verification / reset-password email links
       - Logger__elasticsearch=http://elasticsearch:9200
       - RabbitMQ__Uri=rabbitmq://rabbitmq:5672
       - RabbitMQ__Username=socketchat

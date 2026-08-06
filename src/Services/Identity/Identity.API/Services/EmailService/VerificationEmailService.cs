@@ -70,15 +70,16 @@ public class VerificationEmailService(
     
     private string EmailVerificationLink(string verificationCode)
     {
-        var serviceUrl = config.GetValue<string>("service_url") ?? throw new Exception("ServiceUrl is not configured.");
-        serviceUrl = $"{serviceUrl}/account/{GetPage()}?code={verificationCode}";
+        // Links land on the web SPA, which completes the flow via /api/account/*.
+        var webUrl = config.GetValue<string>("web_url") ?? throw new Exception("WebUrl is not configured.");
+        var link = $"{webUrl}/{GetPage()}?code={verificationCode}";
 
         if (!string.IsNullOrEmpty(_returnUrl))
         {
-            serviceUrl += $"&returnUrl={Uri.EscapeDataString(_returnUrl)}";
+            link += $"&returnUrl={Uri.EscapeDataString(_returnUrl)}";
         }
-        
-        return serviceUrl;
+
+        return link;
     }
 
     private string GetTemplateId()
