@@ -33,6 +33,10 @@
         <PackageReference Include="Serilog.Exceptions" />
         <PackageReference Include="Serilog.Sinks.Debug" />
         <PackageReference Include="Serilog.Sinks.Elasticsearch" />
+        <PackageReference Include="FastEndpoints" />
+        <PackageReference Include="Ulid" />
+        <PackageReference Include="FluentValidation.AspNetCore"/>
+        <PackageReference Include="FluentValidation.DependencyInjectionExtensions"/>
     </ItemGroup>
     
 </Project>

@@ -15,6 +15,25 @@
       - data
       - observability
 
+  chat.api:
+    image: ${DOCKER_REGISTRY-}chat.api
+    build:
+      context: .
+      dockerfile: Services/Chat/Chat.API/Dockerfile
+    networks:
+      - backend
+      - data
+      - observability
+
+  chat.eventprocessor:
+    image: ${DOCKER_REGISTRY-}chat.eventprocessor
+    build:
+      context: .
+      dockerfile: Services/Chat/Chat.EventProcessor/Dockerfile
+    networks:
+      - data
+      - observability
+
   web:
     image: ${DOCKER_REGISTRY-}web
     build:
