@@ -47,6 +47,8 @@ jobs:
     outputs:
       shared: ${{ steps.changes.outputs.shared }}
       identity: ${{ steps.changes.outputs.identity }}
+      chat-api: ${{ steps.changes.outputs.chat-api }}
+      chat-eventprocessor: ${{ steps.changes.outputs.chat-eventprocessor }}
       web: ${{ steps.changes.outputs.web }}
     steps:
       - name: Checkout
@@ -65,6 +67,14 @@ jobs:
               - '.github/workflows/_build-push.yml'
             identity:
               - 'src/Services/Identity/**'
+            chat-api:
+              - 'src/Services/Chat/Chat.API/**'
+              - 'src/Services/Chat/Chat.API.IntegrationTests/**'
+              - 'src/Services/Chat/Chat/**'
+            chat-eventprocessor:
+              - 'src/Services/Chat/Chat.EventProcessor/**'
+              - 'src/Services/Chat/Chat.EventProcessor.IntegrationTests/**'
+              - 'src/Services/Chat/Chat/**'
             web:
               - 'src/web/**'
 
@@ -81,6 +91,40 @@ jobs:
       image_name: socketchat-identity.api
       project_path: src/Services/Identity/Identity.API
       test_path: src/Services/Identity/Identity.API.Tests
+      push_image: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+      image_tag_suffix: ${{ github.event.inputs.image_tag_suffix }}
+    secrets: inherit
+
+  chat-api:
+    name: Chat API
+    needs: detect
+    if: |
+      needs.detect.outputs.chat-api == 'true' ||
+      needs.detect.outputs.shared == 'true' ||
+      github.event.inputs.force_all == 'true'
+    uses: ./.github/workflows/_build-push.yml
+    with:
+      service: chat-api
+      image_name: socketchat-chat.api
+      project_path: src/Services/Chat/Chat.API
+      test_path: src/Services/Chat/Chat.API.IntegrationTests
+      push_image: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+      image_tag_suffix: ${{ github.event.inputs.image_tag_suffix }}
+    secrets: inherit
+
+  chat-eventprocessor:
+    name: Chat EventProcessor
+    needs: detect
+    if: |
+      needs.detect.outputs.chat-eventprocessor == 'true' ||
+      needs.detect.outputs.shared == 'true' ||
+      github.event.inputs.force_all == 'true'
+    uses: ./.github/workflows/_build-push.yml
+    with:
+      service: chat-eventprocessor
+      image_name: socketchat-chat.eventprocessor
+      project_path: src/Services/Chat/Chat.EventProcessor
+      test_path: src/Services/Chat/Chat.EventProcessor.IntegrationTests
       push_image: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
       image_tag_suffix: ${{ github.event.inputs.image_tag_suffix }}
     secrets: inherit
@@ -211,6 +255,8 @@ jobs:
     needs:
       - detect
       - identity
+      - chat-api
+      - chat-eventprocessor
       - web
     if: always()
     steps:

@@ -97,6 +97,52 @@ services:
       - ${HOME}/.aspnet/https:/home/app/.aspnet/https:ro
       - ./certificates:/app/certificates
 
+  chat.api:
+    container_name: chat.api
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -sfk https://localhost:8081/hc || exit 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_HTTP_PORTS=8080
+      - ASPNETCORE_HTTPS_PORTS=8081
+      - ASPNETCORE_Kestrel__Certificates__Default__Password=dev
+      - ASPNETCORE_Kestrel__Certificates__Default__Path=/app/certificates/chat-api.pfx
+    ports:
+      - "7001:8080"
+      - "7064:8081"
+    volumes:
+      - ${HOME}/.microsoft/usersecrets:/home/app/.microsoft/usersecrets:ro
+      - ${HOME}/.aspnet/https:/home/app/.aspnet/https:ro
+      - ./certificates:/app/certificates
+
+  chat.eventprocessor:
+    container_name: chat.eventprocessor
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -sfk https://localhost:8081/hc || exit 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_HTTP_PORTS=8080
+      - ASPNETCORE_HTTPS_PORTS=8081
+      - ASPNETCORE_Kestrel__Certificates__Default__Password=dev
+      - ASPNETCORE_Kestrel__Certificates__Default__Path=/app/certificates/chat-eventprocessor.pfx
+    ports:
+      - "7002:8080"
+      - "7065:8081"
+    volumes:
+      - ${HOME}/.microsoft/usersecrets:/home/app/.microsoft/usersecrets:ro
+      - ${HOME}/.aspnet/https:/home/app/.aspnet/https:ro
+      - ./certificates:/app/certificates
+
   web:
     container_name: web
     restart: unless-stopped
