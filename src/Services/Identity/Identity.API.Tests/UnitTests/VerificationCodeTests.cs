@@ -3,30 +3,42 @@ namespace Identity.API.Tests.UnitTests;
 public class VerificationCodeHasherTests
 {
     [Fact]
-    public void Hash_produces_64_char_hex_string()
+    public void HashProduces64CharHexString()
     {
-        var result = VerificationCodeHasher.Hash("ABC1234567");
+        // Arrange
+        const string code = "ABC1234567";
+        // Act
+        var result = VerificationCodeHasher.Hash(code);
+        
+        // Assert
         result.Length.ShouldBe(64);
         result.ShouldMatch("^[0-9a-f]{64}$");
     }
 
     [Fact]
-    public void Hash_is_deterministic()
+    public void HashIsDeterministic()
     {
+        // Arrange
         var code = "ABC1234567";
+        
+        // Act & Assert
         VerificationCodeHasher.Hash(code).ShouldBe(VerificationCodeHasher.Hash(code));
     }
 
     [Fact]
-    public void Hash_different_inputs_produce_different_outputs()
+    public void HashDifferentInputsProduceDifferentOutputs()
     {
+        // Arrange & Act & Assert
         VerificationCodeHasher.Hash("ABC1234567").ShouldNotBe(VerificationCodeHasher.Hash("XYZ9876543"));
     }
 
     [Fact]
-    public void Hash_output_is_lowercase_hex()
+    public void HashOutputIsLowercaseHex()
     {
+        // Act
         var result = VerificationCodeHasher.Hash("test");
+        
+        // Assert
         result.ShouldBe(result.ToLowerInvariant());
     }
 }
@@ -34,31 +46,42 @@ public class VerificationCodeHasherTests
 public class VerificationCodeExpiryTests
 {
     [Fact]
-    public void IsExpired_returns_false_when_created_now()
+    public void IsExpiredReturnsFalseWhenCreatedNow()
     {
+        // Act
         var code = BuildCode(DateTime.UtcNow);
+        
+        // Assert
         code.IsExpired.ShouldBeFalse();
     }
 
     [Fact]
-    public void IsExpired_returns_false_when_created_29_minutes_ago()
+    public void IsExpiredReturnsFalseWhenCreated29MinutesAgo()
     {
+        // Act
         var code = BuildCode(DateTime.UtcNow.AddMinutes(-29));
+
+        // Assert
         code.IsExpired.ShouldBeFalse();
     }
 
     [Fact]
-    public void IsExpired_returns_true_when_created_31_minutes_ago()
+    public void IsExpiredReturnsTrueWhenCreated31MinutesAgo()
     {
+        // Act
         var code = BuildCode(DateTime.UtcNow.AddMinutes(-31));
+        
+        // Assert
         code.IsExpired.ShouldBeTrue();
     }
 
     [Fact]
-    public void IsExpired_returns_true_when_created_exactly_30_minutes_ago()
+    public void IsExpiredReturnsTrueWhenCreatedExactly30MinutesAgo()
     {
-        // The boundary: 30 min window means exactly at 30 min it is expired
+        // Act
         var code = BuildCode(DateTime.UtcNow.AddMinutes(-30).AddSeconds(-1));
+        
+        // Assert
         code.IsExpired.ShouldBeTrue();
     }
 

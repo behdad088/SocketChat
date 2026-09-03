@@ -1,6 +1,6 @@
 namespace Identity.API.Tests.IntegrationTests;
 
-[Collection(IntegrationTestCollection.Name)]
+[Collection(TestCollection.Name)]
 public class LoginTests(IdentityApiSpecification specification)
 {
     // Uses a separate non-redirect-following client so we can inspect status codes before redirect
@@ -14,16 +14,19 @@ public class LoginTests(IdentityApiSpecification specification)
     private readonly HttpClient _followRedirectClient = specification.CreateClientAndBindSpy();
 
     [Fact]
-    public async Task Login_get_page_returns_200()
+    public async Task LoginGetPageReturnsOk()
     {
+        // Act
         var response = await _followRedirectClient.GetAsync("/Account/Login");
-        response.StatusCode.ShouldBe(System.Net.HttpStatusCode.OK);
+        
+        // Assert
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
     [Fact]
-    public async Task Login_with_valid_alice_credentials_redirects()
+    public async Task LoginWithValidAliceCredentialsRedirects()
     {
-        // Alice is seeded by UsersSeed with EmailConfirmed=true
+        // Act
         var response = await AntiForgeryHelper.PostFormAsync(_followRedirectClient, "/Account/Login",
             new Dictionary<string, string>
             {
@@ -33,15 +36,15 @@ public class LoginTests(IdentityApiSpecification specification)
                 ["Input.Button"] = "login"
             });
 
-        // After a successful local login, IdentityServer redirects back to the return URL
-        // or to the root. Either way it should NOT show an error page.
+        // Assert
         var html = await response.Content.ReadAsStringAsync();
         html.ShouldNotContain("Invalid username or password");
     }
 
     [Fact]
-    public async Task Login_with_wrong_password_shows_error()
+    public async Task LoginWithWrongPasswordShowsError()
     {
+        // Act
         var response = await AntiForgeryHelper.PostFormAsync(_followRedirectClient, "/Account/Login",
             new Dictionary<string, string>
             {
@@ -50,14 +53,16 @@ public class LoginTests(IdentityApiSpecification specification)
                 ["Input.RememberLogin"] = "false",
                 ["Input.Button"] = "login"
             });
-
+        
+        // Assert
         var html = await response.Content.ReadAsStringAsync();
         html.ShouldContain("Invalid username or password");
     }
 
     [Fact]
-    public async Task Login_with_nonexistent_user_shows_error()
+    public async Task LoginWithNonexistentUserShowsError()
     {
+        // Act
         var response = await AntiForgeryHelper.PostFormAsync(_followRedirectClient, "/Account/Login",
             new Dictionary<string, string>
             {
@@ -67,13 +72,15 @@ public class LoginTests(IdentityApiSpecification specification)
                 ["Input.Button"] = "login"
             });
 
+        // Assert
         var html = await response.Content.ReadAsStringAsync();
         html.ShouldContain("Invalid username or password");
     }
 
     [Fact]
-    public async Task Login_with_empty_credentials_returns_validation_errors()
+    public async Task LoginWithEmptyCredentialsReturnsValidationErrors()
     {
+        // Act
         var response = await AntiForgeryHelper.PostFormAsync(_followRedirectClient, "/Account/Login",
             new Dictionary<string, string>
             {
@@ -83,8 +90,7 @@ public class LoginTests(IdentityApiSpecification specification)
                 ["Input.Button"] = "login"
             });
 
-        // ModelState invalid → re-renders page; _ValidationSummary emits
-        // "validation-summary-errors", asp-validation-for spans emit "field-validation-error"
+        // Assert
         response.IsSuccessStatusCode.ShouldBeTrue();
         var html = await response.Content.ReadAsStringAsync();
         html.ShouldContain("validation-summary-errors");

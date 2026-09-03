@@ -1,19 +1,22 @@
-using Microsoft.EntityFrameworkCore;
-
 namespace Identity.API.Tests.IntegrationTests;
 
-[Collection(IntegrationTestCollection.Name)]
+[Collection(TestCollection.Name)]
 public class DataProtectionKeyPersistenceTests(IdentityApiSpecification specification)
 {
     /// <summary>
-    /// A GET to the login page triggers antiforgery token creation, which forces Data Protection to generate and persist a key
+    /// A GET to the login page triggers antiforgery token creation,
+    /// which forces Data Protection to generate and persist a key
     /// </summary>
     [Fact]
-    public async Task DataProtection_keys_are_persisted_to_database_after_first_request()
+    public async Task DataProtectionKeysArePersistedToDatabaseAfterFirstRequest()
     {
+        // Arrange
         var client = specification._factory!.CreateClient();
+        
+        // Act
         await client.GetAsync("/Account/Login");
 
+        // Assert
         await using var scope = specification._factory!.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var keyCount = await db.DataProtectionKeys.CountAsync();

@@ -1,96 +1,110 @@
 namespace Identity.API.Tests.IntegrationTests;
 
-[Collection(IntegrationTestCollection.Name)]
+[Collection(TestCollection.Name)]
 public class EmailVerificationTests(IdentityApiSpecification specification)
 {
     private readonly HttpClient _client = specification.CreateClientAndBindSpy();
-    private readonly FakeVerificationEmailService _emailSpy = specification.EmailSpy;
+    private readonly TestVerificationEmailService _testEmail = specification.TestEmail;
 
     [Fact]
-    public async Task VerifyCode_get_page_returns_200()
+    public async Task VerifyCodeGetPageReturnsOk()
     {
+        // Act
         var response = await _client.GetAsync("/Account/email-verification?code=DUMMY");
-        response.StatusCode.ShouldBe(System.Net.HttpStatusCode.OK);
+        
+        // Assert
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
     [Fact]
-    public async Task VerifyCode_with_valid_code_returns_success()
+    public async Task VerifyCodeWithValidCodeReturnsSuccess()
     {
+        // Arrange
         var email = $"ev-{Guid.NewGuid():N}@example.com";
         await RegisterUserAsync(email);
 
-        var code = _emailSpy.GetLastSentCodeFor(email);
+        var code = _testEmail.GetLastSentCodeFor(email);
         code.ShouldNotBeNullOrEmpty();
 
+        // Act
         var response = await _client.GetAsync(
             $"/Account/email-verification?handler=VerifyCode&code={code}");
 
+        // Assert
         response.IsSuccessStatusCode.ShouldBeTrue();
         var body = await response.Content.ReadAsStringAsync();
         body.ShouldContain("successfully verified");
     }
 
     [Fact]
-    public async Task VerifyCode_with_missing_code_returns_failure()
+    public async Task VerifyCodeWithMissingCodeReturnsFailure()
     {
+        // Act
         var response = await _client.GetAsync(
             "/Account/email-verification?handler=VerifyCode&code=");
 
+        // Assert
         var body = await response.Content.ReadAsStringAsync();
         body.ShouldContain("\"success\":false");
     }
 
     [Fact]
-    public async Task VerifyCode_with_nonexistent_code_returns_failure()
+    public async Task VerifyCodeWithNonexistentCodeReturnsFailure()
     {
+        // Act
         var response = await _client.GetAsync(
             "/Account/email-verification?handler=VerifyCode&code=DOESNOTEXIST99");
 
+        // Assert
         var body = await response.Content.ReadAsStringAsync();
         body.ShouldContain("\"success\":false");
     }
 
     [Fact]
-    public async Task VerifyCode_with_already_used_code_returns_failure()
+    public async Task VerifyCodeWithAlreadyUsedCodeReturnsFailure()
     {
+        // Arrange
         var email = $"ev-dup-{Guid.NewGuid():N}@example.com";
         await RegisterUserAsync(email);
 
-        var code = _emailSpy.GetLastSentCodeFor(email);
+        var code = _testEmail.GetLastSentCodeFor(email);
 
-        // First verification succeeds
+        // Act
         await _client.GetAsync(
             $"/Account/email-verification?handler=VerifyCode&code={code}");
 
-        // Second use of the same code must fail
         var response = await _client.GetAsync(
             $"/Account/email-verification?handler=VerifyCode&code={code}");
 
+        
+        // Assert
         var body = await response.Content.ReadAsStringAsync();
         body.ShouldContain("already been activated");
     }
 
     [Fact]
-    public async Task VerifyCode_with_expired_code_returns_failure()
+    public async Task VerifyCodeWithExpiredCodeReturnsFailure()
     {
+        // Arrange
         var email = $"ev-exp-{Guid.NewGuid():N}@example.com";
         await RegisterUserAsync(email);
 
-        var code = _emailSpy.GetLastSentCodeFor(email);
+        var code = _testEmail.GetLastSentCodeFor(email);
 
-        // Manually backdate the verification code in the DB
         using (var scope = specification._factory!.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             var hashed = VerificationCodeHasher.Hash(code!);
             var entry = db.VerificationCodes.Single(c => c.Code == hashed);
             entry.CreatedAt = DateTime.UtcNow.AddMinutes(-31);
-            db.SaveChanges();
+            await db.SaveChangesAsync();
         }
-
+        
+        // Act
         var response = await _client.GetAsync(
             $"/Account/email-verification?handler=VerifyCode&code={code}");
 
+        // Assert
         var body = await response.Content.ReadAsStringAsync();
         body.ShouldContain("expired");
     }

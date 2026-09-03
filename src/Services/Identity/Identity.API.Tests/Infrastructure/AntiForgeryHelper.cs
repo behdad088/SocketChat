@@ -1,4 +1,3 @@
-using System.Net.Http.Headers;
 using System.Text.RegularExpressions;
 
 namespace Identity.API.Tests.Infrastructure;
@@ -6,13 +5,12 @@ namespace Identity.API.Tests.Infrastructure;
 /// <summary>
 /// Extracts CSRF tokens from Razor Pages responses for use in POST requests.
 /// </summary>
-public static class AntiForgeryHelper
+public static partial class AntiForgeryHelper
 {
     private static readonly Regex TokenPattern =
-        new(@"<input[^>]*name=""__RequestVerificationToken""[^>]*value=""([^""]+)""",
-            RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        RequestVerificationTokenRegex();
 
-    public static async Task<string> GetTokenAsync(HttpClient client, string url)
+    private static async Task<string> GetTokenAsync(HttpClient client, string url)
     {
         var response = await client.GetAsync(url);
         response.EnsureSuccessStatusCode();
@@ -34,4 +32,7 @@ public static class AntiForgeryHelper
         content.Headers.ContentType = new MediaTypeHeaderValue("application/x-www-form-urlencoded");
         return await client.PostAsync(url, content);
     }
+
+    [GeneratedRegex(@"<input[^>]*name=""__RequestVerificationToken""[^>]*value=""([^""]+)""", RegexOptions.IgnoreCase | RegexOptions.Compiled, "en-SE")]
+    private static partial Regex RequestVerificationTokenRegex();
 }

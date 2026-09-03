@@ -1,37 +1,26 @@
-using System.Net;
-using System.Net.Http.Json;
 using Identity.API.Messaging.Events;
 using Identity.API.Messaging.Outbox;
 using Identity.API.Models;
 using Identity.API.Services.Account;
 using Identity.API.Services.EmailService;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
 using NSubstitute;
 
 namespace Identity.API.Tests.IntegrationTests;
 
-[Collection(IntegrationTestCollection.Name)]
+[Collection(TestCollection.Name)]
 public class OutboxFailureTests(IdentityApiSpecification specification)
 {
     private const string Password = "Pass123$";
 
     [Fact]
-    public async Task Outbox_row_stays_pending_and_retries_when_broker_unreachable()
+    public async Task OutboxRowStaysPendingAndRetriesWhenBrokerUnreachable()
     {
-        // The shared factory left running by a previous test class has a
-        // healthy dispatcher connected to the real broker and polling the SAME
-        // Postgres DB — it would publish our row (setting DispatchedAt, with
-        // AttemptCount staying 0) before the dead-broker dispatcher ever fails
-        // at it. Stop it so only the dead-broker factory dispatches.
-        specification._factory?.Dispose();
+        await specification._factory!.DisposeAsync();
 
         try
         {
-            // Fresh factory pointing at a port where nothing listens. Publishes
-            // time out after Outbox__PublishTimeoutSeconds (2s in tests) and the
-            // row gets a 30s backoff, so it must still be pending afterwards.
-            using var factory = new ApiFactory(specification.PostgresConnectionString, "rabbitmq://localhost:1");
+            await using var factory = new ApiFactory(specification.PostgresConnectionString, "rabbitmq://localhost:1");
             using var client = factory.CreateClient();
 
             var email = $"retry-{Guid.NewGuid():N}@test.com";
@@ -56,25 +45,22 @@ public class OutboxFailureTests(IdentityApiSpecification specification)
             }
 
             row.ShouldNotBeNull();
-            row!.DispatchedAt.ShouldBeNull();
+            row.DispatchedAt.ShouldBeNull();
             row.AttemptCount.ShouldBeGreaterThanOrEqualTo(1);
             row.LastError.ShouldNotBeNullOrEmpty();
             row.NextAttemptAt.ShouldBeGreaterThan(DateTimeOffset.UtcNow);
         }
         finally
         {
-            // Recreate the shared factory and re-point the process env at the
-            // real containers for whichever test class runs next (several use
-            // specification._factory directly without recreating it).
+            // Recreate the shared factory
             specification.CreateClientAndBindSpy();
         }
     }
 
     [Fact]
-    public async Task Register_rolls_back_the_user_when_the_outbox_write_fails()
+    public async Task RegisterRollsBackTheUserWhenTheOutboxWriteFails()
     {
-        // Re-point the process env at the shared containers (the previous test
-        // may have run first and left RabbitMQ__Uri pointing at the dead port).
+        // Arrange
         specification.CreateClientAndBindSpy();
 
         var throwingWriter = Substitute.For<IOutboxWriter>();
@@ -83,6 +69,7 @@ public class OutboxFailureTests(IdentityApiSpecification specification)
 
         var email = $"rollback-{Guid.NewGuid():N}@test.com";
 
+        // Act
         using (var scope = specification._factory!.Services.CreateScope())
         {
             var serviceProvider = scope.ServiceProvider;
@@ -96,8 +83,7 @@ public class OutboxFailureTests(IdentityApiSpecification specification)
                 () => service.RegisterAsync(email, Password));
         }
 
-        // Assert from a fresh scope: the user created before the outbox write
-        // must have been rolled back with it.
+        // Assert
         using var assertScope = specification._factory!.Services.CreateScope();
         var userManager = assertScope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         (await userManager.FindByEmailAsync(email)).ShouldBeNull();

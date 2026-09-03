@@ -27,8 +27,9 @@ public class ProfileServiceTests
     }
 
     [Fact]
-    public async Task GetProfileDataAsync_includes_email_claim_when_email_is_set()
+    public async Task GetProfileDataAsyncIncludesEmailClaimWhenEmailIsSet()
     {
+        // Arrange
         var user = BuildUser(email: "alice@example.com", emailConfirmed: true);
         SetupUserManagerReturns(user);
         _userManager.SupportsUserEmail.Returns(true);
@@ -36,15 +37,19 @@ public class ProfileServiceTests
         _userManager.GetRolesAsync(user).Returns(["customer"]);
 
         var context = BuildContext(user.Id);
+        
+        // Act
         await _sut.GetProfileDataAsync(context);
 
+        // Assert
         context.IssuedClaims.ShouldContain(c =>
             c.Type == "email" && c.Value == "alice@example.com");
     }
 
     [Fact]
-    public async Task GetProfileDataAsync_includes_email_verified_true_when_confirmed()
+    public async Task GetProfileDataAsyncIncludesEmailVerifiedTrueWhenConfirmed()
     {
+        // Arrange
         var user = BuildUser(email: "alice@example.com", emailConfirmed: true);
         SetupUserManagerReturns(user);
         _userManager.SupportsUserEmail.Returns(true);
@@ -52,31 +57,39 @@ public class ProfileServiceTests
         _userManager.GetRolesAsync(user).Returns([]);
 
         var context = BuildContext(user.Id);
+        
+        // Act
         await _sut.GetProfileDataAsync(context);
 
+        // Assert
         context.IssuedClaims.ShouldContain(c =>
             c.Type == "email_verified" && c.Value == "true");
     }
 
     [Fact]
-    public async Task GetProfileDataAsync_includes_email_verified_false_when_not_confirmed()
+    public async Task GetProfileDataAsyncIncludesEmailVerifiedFalseWhenNotConfirmed()
     {
+        // Arrange
         var user = BuildUser(email: "alice@example.com", emailConfirmed: false);
         SetupUserManagerReturns(user);
         _userManager.SupportsUserEmail.Returns(true);
         _userManager.SupportsUserRole.Returns(false);
         _userManager.GetRolesAsync(user).Returns([]);
-
+        
         var context = BuildContext(user.Id);
+        
+        // Act
         await _sut.GetProfileDataAsync(context);
 
+        // Assert
         context.IssuedClaims.ShouldContain(c =>
             c.Type == "email_verified" && c.Value == "false");
     }
 
     [Fact]
-    public async Task GetProfileDataAsync_includes_role_claim_for_each_role()
+    public async Task GetProfileDataAsyncIncludesRoleClaimforEachRole()
     {
+        // Arrange
         var user = BuildUser();
         SetupUserManagerReturns(user);
         _userManager.SupportsUserRole.Returns(true);
@@ -85,16 +98,20 @@ public class ProfileServiceTests
         var role = new IdentityRole("customer") { Id = Guid.NewGuid().ToString() };
         _roleManager.FindByNameAsync("customer").Returns(role);
         _roleManager.GetClaimsAsync(role).Returns([]);
-
+        
         var context = BuildContext(user.Id);
+        
+        // Act
         await _sut.GetProfileDataAsync(context);
 
+        // Assert
         context.IssuedClaims.ShouldContain(c => c.Type == "role" && c.Value == "customer");
     }
 
     [Fact]
-    public async Task GetProfileDataAsync_includes_permissions_from_role_claims()
+    public async Task GetProfileDataAsyncIncludesPermissionsFromRoleClaims()
     {
+        // Arrange
         var user = BuildUser();
         SetupUserManagerReturns(user);
         _userManager.SupportsUserRole.Returns(true);
@@ -106,24 +123,32 @@ public class ProfileServiceTests
         _roleManager.GetClaimsAsync(role).Returns([permClaim]);
 
         var context = BuildContext(user.Id);
+        
+        // Act
         await _sut.GetProfileDataAsync(context);
 
+        // Assert
         context.IssuedClaims.ShouldContain(c =>
             c.Type == "permissions" && c.Value == "basket:user-basket:checkout");
     }
 
     [Fact]
-    public async Task GetProfileDataAsync_throws_when_user_not_found()
+    public async Task GetProfileDataAsyncThrowsWhenUserNotFound()
     {
+        // Arrange
         _userManager.FindByIdAsync(Arg.Any<string>()).Returns((ApplicationUser?)null);
 
+        // Act
         var context = BuildContext("nonexistent-id");
+        
+        // Assert
         await Should.ThrowAsync<ArgumentException>(() => _sut.GetProfileDataAsync(context));
     }
 
     [Fact]
-    public async Task IsActiveAsync_returns_true_for_active_user_without_lockout()
+    public async Task IsActiveAsyncReturnsTrueForActiveUserWithoutLockout()
     {
+        // Arrange
         var user = BuildUser();
         user.LockoutEnabled = false;
         SetupUserManagerReturns(user);
@@ -131,8 +156,11 @@ public class ProfileServiceTests
 
         var context = new IsActiveContext(
             BuildPrincipal(user.Id), new Client(), "test");
+        
+        // Act
         await _sut.IsActiveAsync(context);
 
+        // Assert
         context.IsActive.ShouldBeTrue();
     }
 
@@ -149,8 +177,9 @@ public class ProfileServiceTests
     }
 
     [Fact]
-    public async Task IsActiveAsync_returns_false_when_lockout_end_is_in_the_future()
+    public async Task IsActiveAsyncReturnsFalseWhenLockoutEndIsInTheFuture()
     {
+        // Arrange
         var user = BuildUser();
         user.LockoutEnabled = true;
         user.LockoutEnd = DateTimeOffset.UtcNow.AddHours(1);
@@ -159,12 +188,13 @@ public class ProfileServiceTests
 
         var context = new IsActiveContext(
             BuildPrincipal(user.Id), new Client(), "test");
+        
+        // Act
         await _sut.IsActiveAsync(context);
 
+        // Assert
         context.IsActive.ShouldBeFalse();
     }
-
-    // ---- helpers ----
 
     private static ApplicationUser BuildUser(
         string email = "test@example.com",

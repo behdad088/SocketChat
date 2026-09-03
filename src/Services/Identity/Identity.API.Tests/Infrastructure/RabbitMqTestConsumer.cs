@@ -1,34 +1,66 @@
 using System.Text;
-using System.Text.Json;
 using RabbitMQ.Client;
 
 namespace Identity.API.Tests.Infrastructure;
 
-internal sealed class RabbitMqTestConsumer : IDisposable
+internal sealed class RabbitMqTestConsumer : IAsyncDisposable
 {
     private readonly IConnection _connection;
     private readonly IChannel _channel;
     private readonly string _queue;
-
-    public RabbitMqTestConsumer(string amqpUri, string exchange)
+    
+    private RabbitMqTestConsumer(
+        IConnection connection,
+        IChannel channel,
+        string queue)
     {
-        var factory = new ConnectionFactory { Uri = new Uri(amqpUri) };
-        _connection = factory.CreateConnectionAsync().GetAwaiter().GetResult();
-        _channel = _connection.CreateChannelAsync().GetAwaiter().GetResult();
-        _channel.ExchangeDeclareAsync(exchange, ExchangeType.Fanout, durable: true, autoDelete: false)
-            .GetAwaiter().GetResult();
-        _queue = _channel
-            .QueueDeclareAsync(queue: string.Empty, durable: false, exclusive: true, autoDelete: true)
-            .GetAwaiter().GetResult().QueueName;
-        _channel.QueueBindAsync(_queue, exchange, routingKey: string.Empty).GetAwaiter().GetResult();
+        _connection = connection;
+        _channel = channel;
+        _queue = queue;
     }
 
-    public async Task<JsonElement?> WaitForMessageAsync(TimeSpan timeout)
+    public static async Task<RabbitMqTestConsumer> CreateAsync(
+        string amqpUri,
+        string exchange)
+    {
+        var factory = new ConnectionFactory
+        {
+            Uri = new Uri(amqpUri)
+        };
+
+        var connection = await factory.CreateConnectionAsync();
+        var channel = await connection.CreateChannelAsync();
+        await channel.ExchangeDeclareAsync(
+            exchange,
+            ExchangeType.Fanout,
+            durable: true,
+            autoDelete: false);
+
+        var queue = await channel.QueueDeclareAsync(
+            queue: string.Empty,
+            durable: false,
+            exclusive: true,
+            autoDelete: true);
+
+        await channel.QueueBindAsync(
+            queue.QueueName,
+            exchange,
+            routingKey: string.Empty);
+
+        return new RabbitMqTestConsumer(
+            connection,
+            channel,
+            queue.QueueName);
+    }
+
+    public async Task<JsonElement?> WaitForMessageAsync(
+        TimeSpan timeout,
+        bool autoAck = true)
     {
         var deadline = DateTime.UtcNow + timeout;
         while (DateTime.UtcNow < deadline)
         {
-            var result = await _channel.BasicGetAsync(_queue, autoAck: true);
+            var result = await _channel.BasicGetAsync(_queue, autoAck: autoAck);
             if (result is not null)
             {
                 var json = Encoding.UTF8.GetString(result.Body.ToArray());
@@ -41,9 +73,9 @@ internal sealed class RabbitMqTestConsumer : IDisposable
         return null;
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
-        _channel.Dispose();
-        _connection.Dispose();
+        await _connection.DisposeAsync();
+        await _channel.DisposeAsync();
     }
 }

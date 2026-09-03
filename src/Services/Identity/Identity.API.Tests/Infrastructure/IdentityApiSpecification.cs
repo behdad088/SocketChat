@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Identity.API.Tests.Infrastructure;
 
@@ -9,7 +8,7 @@ public class IdentityApiSpecification : IAsyncLifetime
     public ApiFactory? _factory;
     private string? _postgresConnectionString;
     private string? _rabbitMqUri;
-    public FakeVerificationEmailService EmailSpy { get; private set; } = null!;
+    public TestVerificationEmailService TestEmail { get; private set; } = null!;
     public string PostgresConnectionString => _postgresConnectionString!;
     public string RabbitMqAmqpUri => _webApiContainer.RabbitMqAmqpUri;
 
@@ -34,7 +33,6 @@ public class IdentityApiSpecification : IAsyncLifetime
         }
     }
 
-    // Called AFTER the host is built so we can resolve the singleton spy
     public HttpClient CreateClientAndBindSpy(bool createFreshClient = true)
     {
         if (createFreshClient)
@@ -49,7 +47,7 @@ public class IdentityApiSpecification : IAsyncLifetime
             HandleCookies = true
         });
 
-        EmailSpy = _factory!.Services.GetRequiredService<FakeVerificationEmailService>();
+        TestEmail = _factory!.Services.GetRequiredService<TestVerificationEmailService>();
         return client;
     }
 

@@ -4,40 +4,58 @@ namespace Identity.API.Tests.OidcFlowTests;
 /// Verifies that role-based permissions embedded in access tokens match the
 /// policy definitions in Config.RolePolicyDefinitions.
 /// </summary>
-[Collection(IntegrationTestCollection.Name)]
+[Collection(TestCollection.Name)]
 public class ClaimsAccuracyTests(IdentityApiSpecification specification)
 {
     private readonly HttpClient _client = specification._factory!.CreateClient();
 
     [Fact]
-    public async Task Alice_token_contains_customer_role()
+    public async Task AliceTokenContainsCustomerRole()
     {
+        // Arrange
         var token = await GetAliceTokenAsync();
+        
+        // Act
         var role = TokenHelper.ParseClaim(token, "role");
+        
+        // Assert
         role.ShouldBe("customer");
     }
 
     [Fact]
-    public async Task Bob_token_contains_admin_role()
+    public async Task BobTokenContainsAdminRole()
     {
+        // Arrange
         var token = await GetBobTokenAsync();
+        
+        // Act
         var role = TokenHelper.ParseClaim(token, "role");
+        
+        // Assert
         role.ShouldBe("admin");
     }
 
     [Fact]
-    public async Task Alice_token_contains_user_chat_read_and_write_permissions()
+    public async Task AliceTokenContainsUserChatReadAndWritePermissions()
     {
+        // Arrange
         var token = await GetAliceTokenAsync();
+        
+        // Act
         var permissions = TokenHelper.ParsePermissions(token).ToList();
+        
+        // Assert
         permissions.ShouldContain("chat:user-message:read");
         permissions.ShouldContain("chat:user-message:write");
     }
 
     [Fact]
-    public async Task Token_contains_sub_claim()
+    public async Task TokenContainsSubClaim()
     {
+        // Act
         var token = await GetAliceTokenAsync();
+        
+        // Assert
         var sub = TokenHelper.ParseClaim(token, "sub");
         sub.ShouldNotBeNullOrEmpty();
     }

@@ -1,8 +1,6 @@
 using System.Collections.Concurrent;
 using Identity.API.ApiClients.Mailtrap;
-using Identity.API.Data;
 using Identity.API.Services.EmailService;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Identity.API.Tests.Infrastructure;
 
@@ -10,7 +8,7 @@ namespace Identity.API.Tests.Infrastructure;
 /// Test double that stores verification codes in the DB (like the real service)
 /// but skips the external Mailtrap HTTP call and exposes the plaintext codes for assertions.
 /// </summary>
-public class FakeVerificationEmailService(IServiceScopeFactory scopeFactory) : IVerificationEmailService
+public class TestVerificationEmailService(IServiceScopeFactory scopeFactory) : IVerificationEmailService
 {
     private readonly ConcurrentDictionary<string, string> _codesByEmail =
         new(StringComparer.OrdinalIgnoreCase);
