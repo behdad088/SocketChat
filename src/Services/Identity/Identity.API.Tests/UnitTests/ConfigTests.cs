@@ -5,43 +5,56 @@ namespace Identity.API.Tests.UnitTests;
 public class ConfigTests
 {
     [Fact]
-    public void IdentityResources_contains_openid_and_profile()
+    public void IdentityResourcesContainsOpenidAndProfile()
     {
+        // Act
         var names = Config.IdentityResources.Select(r => r.Name).ToList();
+        
+        // Assert
         names.ShouldContain("openid");
         names.ShouldContain("profile");
     }
 
     [Fact]
-    public void ApiScopes_contains_all_four_microservices()
+    public void ApiScopesContainsAllFourMicroservices()
     {
+        // Act
         var names = Config.ApiScopes.Select(s => s.Name).ToList();
+        
+        // Assert
         names.ShouldContain("chat");
     }
 
     [Fact]
-    public void ApiResources_have_secrets_for_introspection()
+    public void ApiResourcesHaveSecretsForIntrospection()
     {
         foreach (var resource in Config.ApiResources)
         {
+            // Assert
             resource.ApiSecrets.ShouldNotBeEmpty(
                 $"ApiResource '{resource.Name}' must have a secret for introspection");
         }
     }
 
     [Fact]
-    public void Clients_contains_all_four_configured_clients()
+    public void ClientsContainsAllFourConfiguredClients()
     {
+        // Act
         var ids = Config.Clients.Select(c => c.ClientId).ToList();
+        
+        // Assert
         ids.ShouldContain("postman-client");
         ids.ShouldContain("postman-client-password");
         ids.ShouldContain("web-client");
     }
 
     [Fact]
-    public void WebClient_uses_password_grant_with_rotating_refresh_tokens()
+    public void WebClientUsesPasswordGrantWithRotatingRefreshTokens()
     {
+        // Act
         var client = Config.Clients.Single(c => c.ClientId == "web-client");
+        
+        // Assert
         client.AllowedGrantTypes.ShouldContain(GrantType.ResourceOwnerPassword);
         client.RequireClientSecret.ShouldBeFalse();
         client.AllowOfflineAccess.ShouldBeTrue();
@@ -50,35 +63,44 @@ public class ConfigTests
     }
 
     [Fact]
-    public void PostmanClient_uses_authorization_code_with_pkce()
+    public void PostmanClientUsesAuthorizationCodeWithPkce()
     {
+        // Act
         var client = Config.Clients.Single(c => c.ClientId == "postman-client");
+        
+        // Assert
         client.AllowedGrantTypes.ShouldContain(GrantType.AuthorizationCode);
         client.RequirePkce.ShouldBeTrue();
         client.RequireClientSecret.ShouldBeFalse();
     }
 
     [Fact]
-    public void PasswordClient_uses_resource_owner_password_grant()
+    public void PasswordClientUsesResourceOwnerPasswordGrant()
     {
+        // Act
         var client = Config.Clients.Single(c => c.ClientId == "postman-client-password");
+        
+        // Assert
         client.AllowedGrantTypes.ShouldContain(GrantType.ResourceOwnerPassword);
         client.RequirePkce.ShouldBeFalse();
     }
 
     [Fact]
-    public void Customer_role_can_checkout_basket()
+    public void CustomerRoleCanCheckoutBasket()
     {
+        // Act
         var rolesForCheckout = Config.RolePolicyDefinitions.PolicyToRoles
             .FirstOrDefault(kv => kv.Key == "chat:user-message:read").Value;
 
+        // Assert
         rolesForCheckout.ShouldNotBeNull();
         rolesForCheckout.ShouldContain(Config.Roles.Customer);
     }
 
     [Fact]
-    public void Admin_role_has_chat_mutation_permissions()
+    public void AdminRoleHasChatMutationPermissions()
     {
+        // Arrange
         var catalogMutationPolicies = new[]
         {
             "chat:user-message:read",
@@ -87,6 +109,7 @@ public class ConfigTests
 
         foreach (var policy in catalogMutationPolicies)
         {
+            // Act - Assert
             var roles = Config.RolePolicyDefinitions.PolicyToRoles[policy];
             roles.ShouldContain(Config.Roles.Admin,
                 $"Admin should have policy '{policy}'");
@@ -94,10 +117,11 @@ public class ConfigTests
     }
 
     [Fact]
-    public void PolicyToRoles_has_no_duplicate_assignments()
+    public void PolicyToRolesHasNoDuplicateAssignments()
     {
         foreach (var (policy, roles) in Config.RolePolicyDefinitions.PolicyToRoles)
         {
+            // Assert
             roles.Distinct().Count().ShouldBe(roles.Length,
                 $"Policy '{policy}' has duplicate role assignments");
         }

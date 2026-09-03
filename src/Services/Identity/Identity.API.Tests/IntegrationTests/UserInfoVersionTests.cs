@@ -1,13 +1,10 @@
-using System.Net;
-using System.Net.Http.Headers;
-using System.Text.Json;
 using Identity.API.Models;
 using Identity.API.Tests.OidcFlowTests;
 using Microsoft.AspNetCore.Identity;
 
 namespace Identity.API.Tests.IntegrationTests;
 
-[Collection(IntegrationTestCollection.Name)]
+[Collection(TestCollection.Name)]
 public class UserInfoVersionTests(IdentityApiSpecification specification)
 {
     private const string Password = "Pass123$";
@@ -41,34 +38,37 @@ public class UserInfoVersionTests(IdentityApiSpecification specification)
     }
 
     [Fact]
-    public async Task Userinfo_returns_version_as_etag_header_and_body_claim()
+    public async Task UserinfoReturnsVersionAsEtagHeaderAndBodyClaim()
     {
+        // Arrange
         var email = await CreateUserAsync();
         var token = await TokenHelper.RequestPasswordTokenAsync(
             _client, email, Password, scopes: "openid profile");
         token.IsError.ShouldBeFalse(token.Error ?? "Unexpected error");
 
+        // Act
         var response = await GetUserInfoAsync(token.AccessToken!);
 
+        // Assert
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
-        // Created via raw UserManager.CreateAsync, so the user starts at Version 0.
         response.Headers.ETag.ShouldNotBeNull();
         response.Headers.ETag!.Tag.ShouldBe("\"0\"");
-
         var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
         json.GetProperty("version").GetString().ShouldBe("0");
     }
 
+    /// <summary>
+    /// A token-carried version would go stale for the token's lifetime;
+    /// the claim must only be issued live by the userinfo endpoint
+    /// </summary>
     [Fact]
-    public async Task Version_claim_is_not_baked_into_access_tokens()
+    public async Task VersionClaimIsNotBakedIntoAccessTokens()
     {
         var email = await CreateUserAsync();
         var token = await TokenHelper.RequestPasswordTokenAsync(
             _client, email, Password, scopes: "openid profile");
         token.IsError.ShouldBeFalse(token.Error ?? "Unexpected error");
 
-        // A token-carried version would go stale for the token's lifetime;
-        // the claim must only be issued live by the userinfo endpoint.
         TokenHelper.ParseClaim(token.AccessToken!, "version").ShouldBeNull();
     }
 }

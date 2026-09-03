@@ -1,5 +1,4 @@
 using System.ComponentModel.DataAnnotations;
-using System.Text.Json;
 using Identity.API.Endpoints;
 
 namespace Identity.API.Tests.UnitTests;
@@ -16,32 +15,38 @@ public class UpdateProfileRequestTests
     }
 
     [Fact]
-    public void Explicit_null_profile_picture_fails_validation()
+    public void ExplicitNullProfilePictureFailsValidation()
     {
-        // Mirrors minimal-API body binding: JSON null lands in the non-nullable property.
+        // Arrange
         var request = JsonSerializer.Deserialize<UpdateProfileRequest>(
             """{"name":"A","lastName":"B","profilePicture":null}""", WebOptions)!;
 
+        // Act
         var results = Validate(request);
 
+        // Assert
         results.ShouldContain(r => r.MemberNames.Contains(nameof(UpdateProfileRequest.ProfilePicture)));
     }
 
     [Fact]
-    public void Empty_profile_picture_passes_validation()
+    public void EmptyProfilePicturePassesValidation()
     {
+        // Act
         var request = JsonSerializer.Deserialize<UpdateProfileRequest>(
             """{"name":"A","lastName":"B","profilePicture":""}""", WebOptions)!;
 
+        // Assert
         Validate(request).ShouldBeEmpty();
     }
 
     [Fact]
-    public void Omitted_profile_picture_defaults_to_empty_and_passes_validation()
+    public void OmittedProfilePictureDefaultsToEmptyAndPassesValidation()
     {
+        // Act
         var request = JsonSerializer.Deserialize<UpdateProfileRequest>(
             """{"name":"A","lastName":"B"}""", WebOptions)!;
 
+        // Assert
         request.ProfilePicture.ShouldBe(string.Empty);
         Validate(request).ShouldBeEmpty();
     }

@@ -1,21 +1,21 @@
-using System.Net;
-using System.Net.Http.Json;
 using Identity.API.Endpoints;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Identity.API.Tests.IntegrationTests;
 
-[Collection(IntegrationTestCollection.Name)]
+[Collection(TestCollection.Name)]
 public class AccountApiRegisterTests(IdentityApiSpecification specification)
 {
     private readonly HttpClient _client = specification.CreateClientAndBindSpy();
-    private readonly FakeVerificationEmailService _emailSpy = specification.EmailSpy;
+    private readonly TestVerificationEmailService _testEmail = specification.TestEmail;
 
     [Fact]
-    public async Task Register_with_valid_data_returns_201_with_user_id()
+    public async Task RegisterWithValidDataShouldReturns201WithUserId()
     {
+        // Arrange
         var email = $"api-newuser-{Guid.NewGuid():N}@example.com";
 
+        // Act
         var response = await _client.PostAsJsonAsync("/api/account/register", new
         {
             email,
@@ -23,6 +23,7 @@ public class AccountApiRegisterTests(IdentityApiSpecification specification)
             confirmPassword = "Pass123$"
         });
 
+        // Assert
         response.StatusCode.ShouldBe(HttpStatusCode.Created);
         var body = await response.Content.ReadFromJsonAsync<RegisterResponse>();
         body!.Email.ShouldBe(email.ToLowerInvariant());
@@ -30,11 +31,13 @@ public class AccountApiRegisterTests(IdentityApiSpecification specification)
     }
 
     [Fact]
-    public async Task Register_sends_verification_email_for_new_user()
+    public async Task RegisterSendsVerificationEmailForNewUser()
     {
+        // Arrange
         var email = $"api-verify-{Guid.NewGuid():N}@example.com";
-        _emailSpy.Reset();
+        _testEmail.Reset();
 
+        // Act
         await _client.PostAsJsonAsync("/api/account/register", new
         {
             email,
@@ -42,24 +45,29 @@ public class AccountApiRegisterTests(IdentityApiSpecification specification)
             confirmPassword = "Pass123$"
         });
 
-        _emailSpy.GetLastSentCodeFor(email).ShouldNotBeNullOrEmpty();
+        // Assert
+        _testEmail.GetLastSentCodeFor(email).ShouldNotBeNullOrEmpty();
     }
 
     [Fact]
-    public async Task Register_with_duplicate_email_returns_409()
+    public async Task RegisterWithDuplicateEmailShouldReturnConflictStatusCode()
     {
+        // Arrange
         var email = $"api-dup-{Guid.NewGuid():N}@example.com";
         var payload = new { email, password = "Pass123$", confirmPassword = "Pass123$" };
 
+        // Act
         await _client.PostAsJsonAsync("/api/account/register", payload);
         var response = await _client.PostAsJsonAsync("/api/account/register", payload);
 
+        // Assert
         response.StatusCode.ShouldBe(HttpStatusCode.Conflict);
     }
 
     [Fact]
-    public async Task Register_with_weak_password_returns_400()
+    public async Task RegisterWithWeakPasswordShouldReturnBadRequest()
     {
+        // Act
         var response = await _client.PostAsJsonAsync("/api/account/register", new
         {
             email = $"api-weak-{Guid.NewGuid():N}@example.com",
@@ -67,12 +75,14 @@ public class AccountApiRegisterTests(IdentityApiSpecification specification)
             confirmPassword = "123"
         });
 
+        // Assert
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
 
     [Fact]
-    public async Task Register_with_mismatched_passwords_returns_400()
+    public async Task RegisterWithMismatchedPasswordsShouldReturnBadRequest()
     {
+        // Act
         var response = await _client.PostAsJsonAsync("/api/account/register", new
         {
             email = $"api-mismatch-{Guid.NewGuid():N}@example.com",
@@ -80,6 +90,7 @@ public class AccountApiRegisterTests(IdentityApiSpecification specification)
             confirmPassword = "Different123$"
         });
 
+        // Assert
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
         problem!.Errors.ShouldContainKey("ConfirmPassword");

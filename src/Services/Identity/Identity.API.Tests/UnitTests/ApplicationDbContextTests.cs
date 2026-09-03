@@ -5,7 +5,7 @@ namespace Identity.API.Tests.UnitTests;
 public class ApplicationDbContextTests
 {
     [Fact]
-    public void ApplicationDbContext_implements_IDataProtectionKeyContext()
+    public void ApplicationDbContextImplementsIDataProtectionKeyContext()
     {
         typeof(IDataProtectionKeyContext)
             .IsAssignableFrom(typeof(ApplicationDbContext))

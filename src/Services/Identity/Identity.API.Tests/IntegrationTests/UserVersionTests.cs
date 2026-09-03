@@ -1,10 +1,9 @@
 using Identity.API.Models;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
 
 namespace Identity.API.Tests.IntegrationTests;
 
-[Collection(IntegrationTestCollection.Name)]
+[Collection(TestCollection.Name)]
 public class UserVersionTests(IdentityApiSpecification specification)
 {
     private const string Password = "Pass123$";
@@ -41,18 +40,25 @@ public class UserVersionTests(IdentityApiSpecification specification)
     }
 
     [Fact]
-    public async Task Creating_a_user_leaves_version_at_zero()
+    public async Task CreatingAUserLeavesVersionAtZero()
     {
+        // Arrange
         using var scope = CreateScope();
+        
+        // Act
         var user = await CreateUserAsync(scope);
 
+        // Assert
         (await StoredVersionAsync(user.Id)).ShouldBe(0);
     }
 
     [Fact]
-    public async Task Updating_a_user_increments_version_each_time()
+    public async Task UpdatingAUserIncrementsVersionEachTime()
     {
+        // Arrange
         using var scope = CreateScope();
+        
+        // Act - Assert
         var user = await CreateUserAsync(scope);
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
 
@@ -66,9 +72,12 @@ public class UserVersionTests(IdentityApiSpecification specification)
     }
 
     [Fact]
-    public async Task Saving_a_verification_code_does_not_bump_user_version()
+    public async Task SavingAVerificationCodeDoesNotBumpUserVersion()
     {
+        // Arrange
         using var scope = CreateScope();
+        
+        // Act
         var user = await CreateUserAsync(scope);
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
@@ -81,12 +90,14 @@ public class UserVersionTests(IdentityApiSpecification specification)
         });
         await db.SaveChangesAsync();
 
+        // Assert
         (await StoredVersionAsync(user.Id)).ShouldBe(0);
     }
 
     [Fact]
-    public async Task Stale_version_update_throws_concurrency_exception()
+    public async Task StaleVersionUpdateThrowsConcurrencyException()
     {
+        // Arrange
         string userId;
         using (var setupScope = CreateScope())
         {
@@ -101,6 +112,7 @@ public class UserVersionTests(IdentityApiSpecification specification)
         var userA = await dbA.Users.SingleAsync(u => u.Id == userId);
         var userB = await dbB.Users.SingleAsync(u => u.Id == userId);
 
+        // Act - Assert
         userA.Name = "Writer A";
         await dbA.SaveChangesAsync(); // DB version: 0 -> 1
 

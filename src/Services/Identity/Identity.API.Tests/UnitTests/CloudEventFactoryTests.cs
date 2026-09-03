@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Identity.API.Messaging.CloudEvents;
 using Identity.API.Messaging.Events;
 
@@ -18,14 +17,17 @@ public class CloudEventFactoryTests
         OccurredAt: occurredAt);
 
     [Fact]
-    public void Create_sets_envelope_fields_from_event_metadata()
+    public void CreateSetsEnvelopeFieldsFromEventMetadata()
     {
+        // Arrange
         var occurredAt = DateTimeOffset.UtcNow;
         var @event = SampleEvent(occurredAt);
         var id = Guid.NewGuid();
 
+        // Act
         var cloudEvent = CloudEventFactory.Create(@event, id, occurredAt);
 
+        // Assert
         cloudEvent.Id.ShouldBe(id.ToString());
         cloudEvent.Type.ShouldBe("com.socketchat.identity.user.created");
         cloudEvent.Source.ShouldBe("urn:socketchat:identity-api");
@@ -37,11 +39,15 @@ public class CloudEventFactoryTests
     }
 
     [Fact]
-    public void CloudEvent_serializes_with_spec_field_names_and_snake_case_data()
+    public void CloudEventSerializesWithSpecFieldNamesAndSnakeCaseData()
     {
+        // Arrange
         var occurredAt = DateTimeOffset.UtcNow;
+        
+        // Act
         var cloudEvent = CloudEventFactory.Create(SampleEvent(occurredAt), Guid.NewGuid(), occurredAt);
 
+        // Assert
         var json = JsonDocument.Parse(JsonSerializer.Serialize(cloudEvent)).RootElement;
 
         json.GetProperty("specversion").GetString().ShouldBe("1.0");
@@ -64,8 +70,9 @@ public class CloudEventFactoryTests
     }
 
     [Fact]
-    public void Event_metadata_matches_spec()
+    public void EventMetadataMatchesSpec()
     {
+        // Assert
         UserCreatedEvent.CloudEventType.ShouldBe("com.socketchat.identity.user.created");
         UserCreatedEvent.ExchangeName.ShouldBe("identity.user.created");
         UserUpdatedEvent.CloudEventType.ShouldBe("com.socketchat.identity.user.updated");

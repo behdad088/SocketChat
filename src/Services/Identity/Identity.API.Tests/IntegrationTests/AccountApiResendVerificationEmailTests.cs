@@ -1,17 +1,15 @@
-using System.Net;
-using System.Net.Http.Json;
-
 namespace Identity.API.Tests.IntegrationTests;
 
-[Collection(IntegrationTestCollection.Name)]
+[Collection(TestCollection.Name)]
 public class AccountApiResendVerificationEmailTests(IdentityApiSpecification specification)
 {
     private readonly HttpClient _client = specification.CreateClientAndBindSpy();
-    private readonly FakeVerificationEmailService _emailSpy = specification.EmailSpy;
+    private readonly TestVerificationEmailService _testEmail = specification.TestEmail;
 
     [Fact]
-    public async Task Resend_for_existing_unverified_user_sends_new_email_and_returns_200()
+    public async Task ResendForExistingUnverifiedUserSendsNewEmailAndShouldReturnsOk()
     {
+        // Arrange
         var email = $"api-resend-{Guid.NewGuid():N}@example.com";
         await _client.PostAsJsonAsync("/api/account/register", new
         {
@@ -19,32 +17,38 @@ public class AccountApiResendVerificationEmailTests(IdentityApiSpecification spe
             password = "Pass123$",
             confirmPassword = "Pass123$"
         });
-        _emailSpy.Reset();
-
+        _testEmail.Reset();
+        
+        // Act
         var response = await _client.PostAsJsonAsync(
             "/api/account/register/resend-verification-email", new { email });
 
+        // Assert
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
-        _emailSpy.GetLastSentCodeFor(email).ShouldNotBeNullOrEmpty();
+        _testEmail.GetLastSentCodeFor(email).ShouldNotBeNullOrEmpty();
     }
 
     [Fact]
-    public async Task Resend_for_nonexistent_email_still_returns_200()
+    public async Task ResendForNonexistentEmailStillShouldReturnOk()
     {
+        // Act
         var response = await _client.PostAsJsonAsync(
             "/api/account/register/resend-verification-email",
             new { email = "nobody-ever-registered@example.com" });
 
+        // Assert
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
     [Fact]
-    public async Task Resend_with_invalid_email_format_returns_400()
+    public async Task ResendWithInvalidEmailFormatShouldReturnBadRequest()
     {
+        // Act
         var response = await _client.PostAsJsonAsync(
             "/api/account/register/resend-verification-email",
             new { email = "not-an-email" });
 
+        // Assert
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
 }

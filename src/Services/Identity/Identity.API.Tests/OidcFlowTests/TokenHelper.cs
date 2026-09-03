@@ -43,11 +43,10 @@ internal static class TokenHelper
         var credentials = Convert.ToBase64String(
             System.Text.Encoding.UTF8.GetBytes($"{resourceName}:{resourceSecret}"));
         request.Headers.Authorization =
-            new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", credentials);
-        request.Content = new FormUrlEncodedContent(new[]
-        {
+            new AuthenticationHeaderValue("Basic", credentials);
+        request.Content = new FormUrlEncodedContent([
             new KeyValuePair<string, string>("token", token)
-        });
+        ]);
 
         var response = await client.SendAsync(request);
         var json = await response.Content.ReadAsStringAsync();

@@ -1,54 +1,80 @@
 namespace Identity.API.Tests.OidcFlowTests;
 
-[Collection(IntegrationTestCollection.Name)]
+[Collection(TestCollection.Name)]
 public class ResourceOwnerPasswordFlowTests(IdentityApiSpecification specification)
 {
     private readonly HttpClient _client = specification._factory!.CreateClient();
 
     [Fact]
-    public async Task Alice_can_obtain_token_with_correct_credentials()
+    public async Task AliceCanObtainTokenWithCorrectCredentials()
     {
+        // Arrange
+        const string username = "AliceSmith@email.com";
+        const string password = "Pass123$";
+        
+        // Act
         var result = await TokenHelper.RequestPasswordTokenAsync(
-            _client, "AliceSmith@email.com", "Pass123$");
+            _client, username, password);
 
+        // Assert
         result.IsError.ShouldBeFalse(result.Error ?? "Unexpected error");
         result.AccessToken.ShouldNotBeNullOrEmpty();
     }
 
     [Fact]
-    public async Task Bob_can_obtain_token_with_correct_credentials()
+    public async Task BobCanObtainTokenWithCorrectCredentials()
     {
+        // Arrange
+        const string username = "BobSmith@email.com";
+        const string password = "Pass123$";
+        
+        // Act
         var result = await TokenHelper.RequestPasswordTokenAsync(
-            _client, "BobSmith@email.com", "Pass123$");
+            _client, username, password);
 
+        // Assert
         result.IsError.ShouldBeFalse(result.Error ?? "Unexpected error");
         result.AccessToken.ShouldNotBeNullOrEmpty();
     }
 
     [Fact]
-    public async Task Wrong_password_returns_error()
+    public async Task WrongPasswordReturnsError()
     {
+        // Arrange
+        const string username = "BobSmith@email.com";
+        const string password = "WrongPassword!";
+        
+        // Act
         var result = await TokenHelper.RequestPasswordTokenAsync(
-            _client, "AliceSmith@email.com", "WrongPassword!");
+            _client, username, password);
 
+        // Assert
         result.IsError.ShouldBeTrue();
         result.Error.ShouldNotBeNullOrEmpty();
     }
 
     [Fact]
-    public async Task Nonexistent_user_returns_error()
+    public async Task NonexistentUserReturnsError()
     {
+        // Arrange
+        const string username = "nobody@example.com";
+        const string password = "Pass123$";
+        
+        // Act
         var result = await TokenHelper.RequestPasswordTokenAsync(
-            _client, "nobody@example.com", "Pass123$");
+            _client, username, password);
 
+        // Assert
         result.IsError.ShouldBeTrue();
     }
 
     [Fact]
-    public async Task Token_endpoint_reachable_at_expected_path()
+    public async Task TokenEndpointReachableAtExpectedPath()
     {
-        // Discovery document sanity check
+        // Act
         var response = await _client.GetAsync("/.well-known/openid-configuration");
+        
+        // Assert
         response.IsSuccessStatusCode.ShouldBeTrue();
         var json = await response.Content.ReadAsStringAsync();
         json.ShouldContain("token_endpoint");

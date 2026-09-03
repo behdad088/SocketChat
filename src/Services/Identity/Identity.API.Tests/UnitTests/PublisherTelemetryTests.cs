@@ -15,7 +15,7 @@ public class PublisherTelemetryTests : IDisposable
         _listener = new ActivityListener
         {
             ShouldListenTo = s => s.Name == "publisher-telemetry-tests",
-            Sample = (ref ActivityCreationOptions<ActivityContext> _) =>
+            Sample = (ref _) =>
                 ActivitySamplingResult.AllDataAndRecorded
         };
         ActivitySource.AddActivityListener(_listener);
@@ -36,12 +36,15 @@ public class PublisherTelemetryTests : IDisposable
     }
 
     [Fact]
-    public void Starts_producer_activity_with_messaging_and_cloudevents_tags()
+    public void StartsProducerActivityWithMessagingAndCloudEventsTags()
     {
+        // Arrange 
         var cloudEvent = SampleCloudEvent();
 
+        // Act
         using var activity = _source.StartCloudEventPublishActivity(cloudEvent, originatingTraceParent: null);
 
+        // Assert
         activity.ShouldNotBeNull();
         activity!.Kind.ShouldBe(ActivityKind.Producer);
         activity.DisplayName.ShouldBe("publish identity.user.created");
@@ -55,36 +58,45 @@ public class PublisherTelemetryTests : IDisposable
     }
 
     [Fact]
-    public void Injects_w3c_trace_context_into_the_cloudevent()
+    public void InjectsW3cTraceContextIntoTheCloudEvent()
     {
+        // Arrange
         var cloudEvent = SampleCloudEvent();
 
+        // Act
         using var activity = _source.StartCloudEventPublishActivity(cloudEvent, originatingTraceParent: null);
 
+        // Assert
         cloudEvent.TraceParent.ShouldNotBeNullOrEmpty();
         cloudEvent.TraceParent!.ShouldContain(activity!.TraceId.ToHexString());
     }
 
     [Fact]
-    public void Links_to_the_originating_request_trace_when_traceparent_is_stored()
+    public void LinksToTheOriginatingRequestTraceWhenTraceParentIsStored()
     {
+        // Arrange
         var cloudEvent = SampleCloudEvent();
         const string storedTraceParent = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01";
 
+        // Act
         using var activity = _source.StartCloudEventPublishActivity(cloudEvent, storedTraceParent);
 
+        // Assert
         activity.ShouldNotBeNull();
-        activity!.Links.ShouldContain(l =>
+        activity.Links.ShouldContain(l =>
             l.Context.TraceId.ToHexString() == "0af7651916cd43dd8448eb211c80319c");
     }
 
     [Fact]
-    public void Ignores_invalid_stored_traceparent()
+    public void IgnoresInvalidStoredTraceParent()
     {
+        // Arrange
         var cloudEvent = SampleCloudEvent();
 
+        // Act
         using var activity = _source.StartCloudEventPublishActivity(cloudEvent, "not-a-traceparent");
 
+        // Assert
         activity.ShouldNotBeNull();
         activity!.Links.ShouldBeEmpty();
     }

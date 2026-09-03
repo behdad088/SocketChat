@@ -1,67 +1,79 @@
 namespace Identity.API.Tests.IntegrationTests;
 
-[Collection(IntegrationTestCollection.Name)]
+[Collection(TestCollection.Name)]
 public class ForgotPasswordTests(IdentityApiSpecification specification)
 {
     private readonly HttpClient _client = specification.CreateClientAndBindSpy();
-    private readonly FakeVerificationEmailService _emailSpy = specification.EmailSpy;
+    private readonly TestVerificationEmailService _testEmail = specification.TestEmail;
 
     [Fact]
-    public async Task ForgotPassword_get_page_returns_200()
+    public async Task ForgotPasswordGetPageReturnsOk()
     {
+        // Act
         var response = await _client.GetAsync("/Account/ForgotPassword");
-        response.StatusCode.ShouldBe(System.Net.HttpStatusCode.OK);
+        
+        // Assert
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
     [Fact]
-    public async Task ForgotPassword_for_existing_user_sends_reset_email()
+    public async Task ForgotPasswordForExistingUserSendsResetEmail()
     {
-        // Alice is seeded by UsersSeed
-        _emailSpy.Reset();
-
+        // Arrange
+        var email = "AliceSmith@email.com";
+        _testEmail.Reset();
+        
+        // Act
         var response = await AntiForgeryHelper.PostFormAsync(_client, "/Account/ForgotPassword",
             new Dictionary<string, string>
             {
-                ["Input.Email"] = "AliceSmith@email.com"
+                ["Input.Email"] = email
             });
 
+        // Assert
         response.IsSuccessStatusCode.ShouldBeTrue();
-        _emailSpy.GetLastSentCodeFor("AliceSmith@email.com").ShouldNotBeNullOrEmpty();
+        _testEmail.GetLastSentCodeFor(email).ShouldNotBeNullOrEmpty();
     }
 
     [Fact]
-    public async Task ForgotPassword_for_nonexistent_email_does_not_leak_existence()
+    public async Task ForgotPasswordForNonexistentEmailDoesNotLeakExistence()
     {
-        // The page should show the same UI regardless of whether the user exists
+        // Arrange
+        const string aliceEmail = "AliceSmith@email.com";
+        const string nonexistentEmail = "nobody-ever-registered@example.com";
+        
+        // Act
         var existingResponse = await AntiForgeryHelper.PostFormAsync(_client, "/Account/ForgotPassword",
             new Dictionary<string, string>
             {
-                ["Input.Email"] = "AliceSmith@email.com"
+                ["Input.Email"] = aliceEmail
             });
 
         var nonExistingResponse = await AntiForgeryHelper.PostFormAsync(_client, "/Account/ForgotPassword",
             new Dictionary<string, string>
             {
-                ["Input.Email"] = "nobody-ever-registered@example.com"
+                ["Input.Email"] = nonexistentEmail
             });
 
+        // Assert
         var existingHtml = await existingResponse.Content.ReadAsStringAsync();
         var nonExistingHtml = await nonExistingResponse.Content.ReadAsStringAsync();
 
-        // Both should render the same success-like message (anti-enumeration)
         existingHtml.ShouldNotContain("User not found");
         nonExistingHtml.ShouldNotContain("User not found");
     }
 
     [Fact]
-    public async Task ForgotPassword_with_empty_email_returns_validation_error()
+    public async Task ForgotPasswordWithEmptyEmailReturnsValidationRrror()
     {
+        // Act
         var response = await AntiForgeryHelper.PostFormAsync(_client, "/Account/ForgotPassword",
             new Dictionary<string, string>
             {
                 ["Input.Email"] = ""
             });
 
+        // Assert
         var html = await response.Content.ReadAsStringAsync();
         html.ShouldContain("field-validation-error");
     }

@@ -1,56 +1,60 @@
-using System.Net;
-using System.Net.Http.Json;
-using Identity.API.Data;
-using Microsoft.EntityFrameworkCore;
-
 namespace Identity.API.Tests.IntegrationTests;
 
-[Collection(IntegrationTestCollection.Name)]
+[Collection(TestCollection.Name)]
 public class AccountApiEmailVerificationTests(IdentityApiSpecification specification)
 {
     private readonly HttpClient _client = specification.CreateClientAndBindSpy();
-    private readonly FakeVerificationEmailService _emailSpy = specification.EmailSpy;
+    private readonly TestVerificationEmailService _testEmail = specification.TestEmail;
 
     [Fact]
-    public async Task Verify_with_valid_code_returns_200()
+    public async Task VerifyWithValidCodeShouldReturn200()
     {
+        // Arrange
         var email = $"api-ev-{Guid.NewGuid():N}@example.com";
         await RegisterUserAsync(email);
-        var code = _emailSpy.GetLastSentCodeFor(email);
+        var code = _testEmail.GetLastSentCodeFor(email);
 
+        // Act
         var response = await _client.PostAsJsonAsync("/api/account/email-verification", new { code });
 
+        // Assert
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
     [Fact]
-    public async Task Verify_with_nonexistent_code_returns_400()
+    public async Task VerifyWithNonexistentCodeShouldReturn400()
     {
+        // Act
         var response = await _client.PostAsJsonAsync(
-            "/api/account/email-verification", new { code = "DOESNOTEXIST99" });
+            "/api/account/email-verification", new { code = "THISCODEDOESNOTEXIST99" });
 
+        // Assert
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
 
     [Fact]
-    public async Task Verify_with_already_used_code_returns_410()
+    public async Task VerifyWithAlreadyUsedCodeShouldReturn410()
     {
+        // Arrange
         var email = $"api-ev-dup-{Guid.NewGuid():N}@example.com";
         await RegisterUserAsync(email);
-        var code = _emailSpy.GetLastSentCodeFor(email);
+        var code = _testEmail.GetLastSentCodeFor(email);
 
+        // Act
         await _client.PostAsJsonAsync("/api/account/email-verification", new { code });
         var response = await _client.PostAsJsonAsync("/api/account/email-verification", new { code });
 
+        // Assert
         response.StatusCode.ShouldBe(HttpStatusCode.Gone);
     }
 
     [Fact]
-    public async Task Verify_with_expired_code_returns_410()
+    public async Task VerifyWithExpiredCodeShouldReturn410()
     {
+        // Arrange
         var email = $"api-ev-exp-{Guid.NewGuid():N}@example.com";
         await RegisterUserAsync(email);
-        var code = _emailSpy.GetLastSentCodeFor(email);
+        var code = _testEmail.GetLastSentCodeFor(email);
 
         using (var scope = specification._factory!.Services.CreateScope())
         {
@@ -61,8 +65,10 @@ public class AccountApiEmailVerificationTests(IdentityApiSpecification specifica
             await db.SaveChangesAsync();
         }
 
+        // Act
         var response = await _client.PostAsJsonAsync("/api/account/email-verification", new { code });
 
+        // Assert
         response.StatusCode.ShouldBe(HttpStatusCode.Gone);
     }
 
