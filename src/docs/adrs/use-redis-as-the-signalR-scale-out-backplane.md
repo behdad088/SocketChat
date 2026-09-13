@@ -1,4 +1,4 @@
-ADR-001: Use Redis as the SignalR Scale-Out Backplane
+Use Redis as the SignalR Scale-Out Backplane
 
 **Status**: Accepted
 **Date**: 2026-09-03
@@ -7,13 +7,7 @@ ADR-001: Use Redis as the SignalR Scale-Out Backplane
 
 Chat.Api exposes SignalR hubs used by the React client for real-time communication. The application will be deployed to Kubernetes with multiple Chat.Api instances (pods) for horizontal scaling and high availability. A SignalR connection is established with a specific Chat.Api instance. For example:
 
-                    Kubernetes Service
-                    /       |       \
-                   /        |        \
-              Chat.Api   Chat.Api   Chat.Api
-                Pod A      Pod B      Pod C
-                  │          │          │
-                User A     User B     User C
+![signalr_service.png](signalr_service.png)
 
 If a client connected to Pod A needs to receive a SignalR message while the message is initiated by Pod B, Pod B does not inherently know about the SignalR connections maintained by Pod A. Without a SignalR scale-out mechanism, messages sent using APIs such as Clients.User(...), Clients.Group(...), or Clients.All(...) may not reach clients connected to other instances. Kubernetes Service load balancing does not solve this problem because it distributes incoming connections; it does not synchronize SignalR connection state between application instances.
 
@@ -21,7 +15,7 @@ If a client connected to Pod A needs to receive a SignalR message while the mess
 
 Use Redis as the SignalR scale-out backplane. Chat.Api will use the official ASP.NET Core SignalR Redis integration:
 
-```
+```csharp
 
 builder.Services
 .AddSignalR()
