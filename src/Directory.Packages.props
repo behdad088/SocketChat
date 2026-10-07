@@ -53,7 +53,7 @@
     <PackageVersion Include="xunit" Version="2.5.3"/>
     <PackageVersion Include="xunit.runner.visualstudio" Version="2.5.3"/>
     <PackageVersion Include="GitHubActionsTestLogger" Version="2.4.1"/>
-    <PackageVersion Include="Marten" Version="7.33.0"/>
+    <PackageVersion Include="Marten" Version="9.37.0"/>
     <PackageVersion Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.19.6"/>
     <PackageVersion Include="Polly" Version="8.2.1"/>
     <PackageVersion Include="Grpc.AspNetCore" Version="2.57.0"/>

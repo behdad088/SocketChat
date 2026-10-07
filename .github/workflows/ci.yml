@@ -49,6 +49,7 @@ jobs:
       identity: ${{ steps.changes.outputs.identity }}
       chat-api: ${{ steps.changes.outputs.chat-api }}
       chat-eventprocessor: ${{ steps.changes.outputs.chat-eventprocessor }}
+      chat-storage: ${{ steps.changes.outputs.chat-storage }}
       web: ${{ steps.changes.outputs.web }}
     steps:
       - name: Checkout
@@ -75,6 +76,9 @@ jobs:
               - 'src/Services/Chat/Chat.EventProcessor/**'
               - 'src/Services/Chat/Chat.EventProcessor.IntegrationTests/**'
               - 'src/Services/Chat/Chat/**'
+            chat-storage:
+              - 'src/Services/Chat/Chat/**'
+              - 'src/Services/Chat/Chat.IntegrationTests/**'
             web:
               - 'src/web/**'
 
@@ -128,6 +132,29 @@ jobs:
       push_image: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
       image_tag_suffix: ${{ github.event.inputs.image_tag_suffix }}
     secrets: inherit
+
+  # The shared Chat library has no image of its own, so it gets a test-only job
+  # instead of going through _build-push.yml.
+  chat-storage:
+    name: Chat storage
+    needs: detect
+    if: |
+      needs.detect.outputs.chat-storage == 'true' ||
+      needs.detect.outputs.shared == 'true' ||
+      github.event.inputs.force_all == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Test
+        run: dotnet test src/Services/Chat/Chat.IntegrationTests --configuration Release --logger GitHubActions
 
   # as its Dockerfile is Node-based and not .NET-based, and it has no .NET tests to run.
   web:
@@ -257,6 +284,7 @@ jobs:
       - identity
       - chat-api
       - chat-eventprocessor
+      - chat-storage
       - web
     if: always()
     steps:
