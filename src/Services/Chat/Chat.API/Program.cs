@@ -1,3 +1,4 @@
+using Chat.Storage;
 using Serilog;
 using Shared.Exceptions.Handler;
 using Shared.HealthChecks;
@@ -5,7 +6,12 @@ using Shared.Middlewares;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddDefaultHealthChecks();
+var chatDbConnectionString = builder.Configuration.GetConnectionString("ChatDB")
+                             ?? throw new InvalidOperationException("Connection string 'ChatDB' is missing.");
+
+builder.Services.AddChatStorage(chatDbConnectionString);
+builder.Services.AddDefaultHealthChecks()
+    .AddNpgSql(chatDbConnectionString, name: "postgres", tags: ["ready", "liveness"]);
 builder.Services.AddFastEndpoints();
 var app = builder.Build();
 

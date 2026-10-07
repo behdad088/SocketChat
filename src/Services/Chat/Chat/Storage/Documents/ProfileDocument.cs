@@ -17,10 +17,5 @@ public sealed record ProfileDocument
     public DateTimeOffset? LastOnline { get; init; }
     public string? Quote { get; init; }
 
-    /// <summary>
-    /// Mirrors the Identity user version. The profile-sync write must skip an event whose
-    /// Version is less than or equal to this one, and must keep the Chat-owned LastOnline.
-    /// Writing LastOnline doesn't change it.
-    /// </summary>
     public required int Version { get; init; }
 }

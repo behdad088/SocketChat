@@ -1,3 +1,4 @@
+using Chat.Storage;
 using FluentValidation;
 using Serilog;
 using Shared.HealthChecks;
@@ -7,7 +8,13 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddValidatorsFromAssemblies(AppDomain.CurrentDomain.GetAssemblies());
-builder.Services.AddDefaultHealthChecks();
+
+var chatDbConnectionString = builder.Configuration.GetConnectionString("ChatDB")
+                             ?? throw new InvalidOperationException("Connection string 'ChatDB' is missing.");
+
+builder.Services.AddChatStorage(chatDbConnectionString);
+builder.Services.AddDefaultHealthChecks()
+    .AddNpgSql(chatDbConnectionString, name: "postgres", tags: ["ready", "liveness"]);
 
 var app = builder.Build();
 app.MapDefaultHealthChecks();

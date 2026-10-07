@@ -59,9 +59,6 @@ public class ProfileDocumentTests(PostgresFixture fixture)
     [Fact]
     public async Task UpdatingLastOnline_LeavesTheIdentityVersionUnchanged()
     {
-        // schema.md: the Chat Service writes LastOnline when the user goes offline. That write
-        // must not change Version, which mirrors the Identity user version and decides whether
-        // the next Identity event is applied.
         var profile = NewProfile(version: 3);
         await WriteAsync(profile);
 

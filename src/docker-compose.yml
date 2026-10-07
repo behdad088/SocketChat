@@ -4,6 +4,11 @@
     image: postgres:16-alpine
     networks:
       - data
+
+  chatDb:
+    image: postgres:16-alpine
+    networks:
+      - data
   
   identity.api:
     image: ${DOCKER_REGISTRY-}identity.api
@@ -92,6 +97,7 @@ networks:
 
 volumes:
   postgres_identity_db:
+  postgres_chat_db:
   mailpit_data:
   elasticsearch-data:
   rabbitmq_data:
