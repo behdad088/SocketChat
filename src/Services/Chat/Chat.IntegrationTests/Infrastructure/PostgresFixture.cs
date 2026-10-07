@@ -57,6 +57,9 @@ public class PostgresFixture : IAsyncLifetime
     public Task<IReadOnlyList<string>> GetJsonKeysAsync(string tableName, string id) =>
         QueryStringsAsync($"select jsonb_object_keys(data) from public.{tableName} where id = $1", id);
 
+    public Task<IReadOnlyList<string>> GetFirstElementJsonKeysAsync(string tableName, string id, string arrayField) =>
+        QueryStringsAsync($"select jsonb_object_keys(data -> $2 -> 0) from public.{tableName} where id = $1", id, arrayField);
+
     public async Task<string?> GetJsonFieldAsync(string tableName, string id, string field) =>
         (await QueryStringsAsync($"select data ->> $2 from public.{tableName} where id = $1", id, field))
         .SingleOrDefault();

@@ -136,11 +136,12 @@ NOTE: Adding or removing a reaction does NOT increment `Version` or create a ver
 **Access patterns**
 *  **Id**: {message id}. to get a single message.
 *  **ConversationId + Id cursor**: to page through the messages in a conversation, newest first (keyset pagination: `ConversationId = ? AND Id < {cursor} ORDER BY Id DESC LIMIT n`).
+*  **ConversationId + Id / RevisionId cursors**: the reconnect delta sync from the chat message ADR (`ConversationId = ? AND (Id > {id cursor} OR RevisionId > {revision cursor})`).
 
 **indexes**
 *  **Id**: primary key
 *  **(ConversationId, Id)**: composite secondary index for keyset pagination of a conversation's messages.
-*  **(RevisionId)**: secondary index to retrieve a message by its revision id.
+*  **(ConversationId, RevisionId)**: composite secondary index for the delta sync's RevisionId branch.
 
 `mt_doc_messageversiondocument`
 
