@@ -5,11 +5,6 @@ using Testcontainers.PostgreSql;
 
 namespace Chat.IntegrationTests.Infrastructure;
 
-/// <summary>
-/// One Postgres container per test run, with the Chat schema applied exactly as the
-/// services apply it on startup. Tests never clean the database between runs; each
-/// test uses fresh ids instead.
-/// </summary>
 public class PostgresFixture : IAsyncLifetime
 {
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder()
@@ -37,7 +32,6 @@ public class PostgresFixture : IAsyncLifetime
         await _postgres.DisposeAsync();
     }
 
-    /// <summary>Creates an empty database in the same container and returns its connection string.</summary>
     public async Task<string> CreateEmptyDatabaseAsync()
     {
         var databaseName = $"chat_{Guid.NewGuid():N}";
@@ -55,7 +49,6 @@ public class PostgresFixture : IAsyncLifetime
     public Task<IReadOnlyList<string>> GetTableNamesAsync() =>
         QueryStringsAsync("select table_name from information_schema.tables where table_schema = 'public'");
 
-    /// <summary>Top-level JSON keys of a stored document, i.e. the field names in schema.md.</summary>
     public Task<IReadOnlyList<string>> GetJsonKeysAsync(string tableName, string id) =>
         QueryStringsAsync($"select jsonb_object_keys(data) from public.{tableName} where id = $1", id);
 

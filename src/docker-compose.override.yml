@@ -16,6 +16,23 @@ services:
       - "5434:5432"
     volumes:
       - postgres_identity_db:/var/lib/postgresql/data/
+
+  chatDb:
+    container_name: chatDb
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=ChatDb
+    restart: always
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "5435:5432"
+    volumes:
+      - postgres_chat_db:/var/lib/postgresql/data/
   
   mailpit:
     image: axllent/mailpit
@@ -112,6 +129,10 @@ services:
       - ASPNETCORE_HTTPS_PORTS=8081
       - ASPNETCORE_Kestrel__Certificates__Default__Password=dev
       - ASPNETCORE_Kestrel__Certificates__Default__Path=/app/certificates/chat-api.pfx
+      - ConnectionStrings__ChatDB=Host=chatDb;Port=5432;Database=ChatDb;User Id=postgres;Password=postgres
+    depends_on:
+      chatDb:
+        condition: service_healthy
     ports:
       - "7001:8080"
       - "7064:8081"
@@ -135,6 +156,10 @@ services:
       - ASPNETCORE_HTTPS_PORTS=8081
       - ASPNETCORE_Kestrel__Certificates__Default__Password=dev
       - ASPNETCORE_Kestrel__Certificates__Default__Path=/app/certificates/chat-eventprocessor.pfx
+      - ConnectionStrings__ChatDB=Host=chatDb;Port=5432;Database=ChatDb;User Id=postgres;Password=postgres
+    depends_on:
+      chatDb:
+        condition: service_healthy
     ports:
       - "7002:8080"
       - "7065:8081"

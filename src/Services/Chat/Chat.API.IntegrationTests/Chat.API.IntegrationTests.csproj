@@ -16,8 +16,14 @@
         <PackageReference Include="Shouldly" />
         <PackageReference Include="AutoFixture.Xunit2"/>
         <PackageReference Include="Testcontainers" />
+        <PackageReference Include="Testcontainers.PostgreSql" />
         <PackageReference Include="WebMotions.Fake.Authentication.JwtBearer" />
         <PackageReference Include="GitHubActionsTestLogger" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Using Include="Xunit" />
+        <Using Include="Shouldly" />
     </ItemGroup>
 
     <ItemGroup>
