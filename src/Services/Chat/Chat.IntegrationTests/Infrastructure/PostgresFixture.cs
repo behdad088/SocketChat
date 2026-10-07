@@ -49,8 +49,36 @@ public class PostgresFixture : IAsyncLifetime
     public Task<IReadOnlyList<string>> GetTableNamesAsync() =>
         QueryStringsAsync("select table_name from information_schema.tables where table_schema = 'public'");
 
+    public async Task<string?> GetIndexDefinitionAsync(string indexName) =>
+        (await QueryStringsAsync(
+            "select indexdef from pg_indexes where schemaname = 'public' and indexname = $1",
+            indexName)).SingleOrDefault();
+
     public Task<IReadOnlyList<string>> GetJsonKeysAsync(string tableName, string id) =>
         QueryStringsAsync($"select jsonb_object_keys(data) from public.{tableName} where id = $1", id);
+
+    public async Task<string?> GetJsonFieldAsync(string tableName, string id, string field) =>
+        (await QueryStringsAsync($"select data ->> $2 from public.{tableName} where id = $1", id, field))
+        .SingleOrDefault();
+
+    public async Task<string> ExplainWithoutSeqScanAsync(NpgsqlCommand query)
+    {
+        await using var connection = new NpgsqlConnection(_postgres.GetConnectionString());
+        await connection.OpenAsync();
+        await using (var disableSeqScan = new NpgsqlCommand("set enable_seqscan = off", connection))
+            await disableSeqScan.ExecuteNonQueryAsync();
+
+        await using var explain = new NpgsqlCommand("explain " + query.CommandText, connection);
+        foreach (NpgsqlParameter parameter in query.Parameters)
+            explain.Parameters.Add(parameter.Clone());
+
+        var plan = new List<string>();
+        await using var reader = await explain.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+            plan.Add(reader.GetString(0));
+
+        return string.Join(Environment.NewLine, plan);
+    }
 
     private async Task<IReadOnlyList<string>> QueryStringsAsync(string sql, params object[] parameters)
     {

@@ -62,12 +62,15 @@ Each user owns their own row, so per-user preferences (state, pin, read position
 | IsPinned            | boolean  | no         | true if the conversation is pinned                                                                                       |
 | IsPrivate           | boolean  | no         | true if this user has made the conversation private (see NOTE below)                                                    |
 | LastReadMessageId   | string   | yes        | ULID of the last message this user has read. Unread messages are those with Id > LastReadMessageId. Null = nothing read. |
+| LastMessageId       | string   | yes        | ULID of the newest message reflected in LastMessageAt and LatestMessageBody (see NOTE below).                            |
 | LastMessageAt       | datetime | yes        | UTC timestamp of the latest message in the conversation, denormalized here so the chat list can be sorted by recency.    |
 | LatestMessageBody   | string   | yes        | The latest message in the channel.                                                                                       |
 | TotalUnreadMessages | int      | no         | The total unread messages since the last read (LastReadMessageId). default is set to 0                                   |
 | Version             | int      | no         | version number, used for optimistic concurrency; no change history is kept for channel documents                         |
 
 NOTE: Read state is tracked with `LastReadMessageId` rather than a per-message status. Marking a conversation as read is a single write to this row, and because message IDs are ULIDs (lexicographically sortable by time), the unread count is simply the number of messages with `Id > LastReadMessageId` sent by the other participant.
+
+NOTE: `LastMessageId` is the write high-water mark for the denormalized latest-message fields (`LastMessageAt`, `LatestMessageBody`) and is separate from `LastReadMessageId`, which tracks read state. Competing consumers can persist messages out of order, so a writer only overwrites those fields when its message's ULID is greater than the stored `LastMessageId`. A ULID comparison is exact; comparing `LastMessageAt` timestamps is not, because of clock skew and same-millisecond messages.
 
 NOTE: `LastMessageAt` is duplicated from the Conversation document onto both participants' channel rows whenever a message is sent, so that "list my conversations, newest first" is a single indexed query on this table without joining to `mt_doc_conversationdocument`.
 
@@ -92,11 +95,12 @@ This table stores the conversation channel information shared by all participant
 | Id            | string   | no         | conversation id, example:  `01KX6WMD905AN68KKFWQVDNCHZ`  |
 | Participants  | array    | no         | Array of user ids in the conversation                    |
 | CreatedAt     | datetime | no         | UTC timestamp of when the conversation was created       |
+| LastMessageId | string   | yes        | ULID of the newest message reflected in LastMessageAt    |
 | LastMessageAt | datetime | yes        | UTC timestamp of the latest message in the conversation  |
 
 NOTE: The chat-list query reads last-activity time from the user channel documents, not from here; this copy is the conversation-level source of truth, kept for future-proofing (e.g. group conversations, where updating one conversation document beats fanning out to N channel rows per message). It also allows the denormalized `LastMessageAt` on channel rows to be repaired/backfilled if they drift.
 
-NOTE: `LastMessageAt` is written on every message send, which makes this document a write hot spot for busy conversations. We use a patch/partial update (not full-document optimistic concurrency) for this field, or be prepared to retry on version conflicts.
+NOTE: `LastMessageAt` is written on every message send, which makes this document a write hot spot for busy conversations. Like on the user channel document, it is only overwritten by a message whose ULID is greater than the stored `LastMessageId`. We use a patch/partial update (not full-document optimistic concurrency) for this field, or be prepared to retry on version conflicts.
 
 **Access patterns**
 *  **Id**: {conversation id}. to get the conversation between two users.

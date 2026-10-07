@@ -13,10 +13,22 @@ public class SchemaTests(PostgresFixture fixture)
 
     [Theory]
     [InlineData("mt_doc_profiledocument")]
+    [InlineData("mt_doc_userchanneldocument")]
+    [InlineData("mt_doc_conversationdocument")]
     public async Task Schema_ContainsDocumentTable(string tableName)
     {
         var tables = await fixture.GetTableNamesAsync();
 
         tables.ShouldContain(tableName);
+    }
+
+    [Fact]
+    public async Task Schema_IndexesUserChannelsByUserIdAndLastMessageAt()
+    {
+        var definition = await fixture.GetIndexDefinitionAsync("mt_doc_userchanneldocument_idx_user_id_last_message_at");
+
+        definition.ShouldBe(
+            "CREATE INDEX mt_doc_userchanneldocument_idx_user_id_last_message_at ON public.mt_doc_userchanneldocument " +
+            "USING btree (((data ->> 'UserId'::text)), mt_immutable_timestamptz((data ->> 'LastMessageAt'::text)))");
     }
 }
