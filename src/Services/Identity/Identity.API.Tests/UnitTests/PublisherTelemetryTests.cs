@@ -30,7 +30,7 @@ public class PublisherTelemetryTests : IDisposable
     private static CloudEvent<UserCreatedEvent> SampleCloudEvent()
     {
         var @event = new UserCreatedEvent(
-            "user-1", "ada@example.com", "ada@example.com", "Ada", "Lovelace",
+            "user-1", "test@example.com", "test@example.com", "test", "test",
             "", false, 0, DateTimeOffset.UtcNow);
         return CloudEventFactory.Create(@event, Guid.NewGuid(), DateTimeOffset.UtcNow);
     }

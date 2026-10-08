@@ -14,6 +14,7 @@ public class SetLastOnlineCommand
         session
             .Patch<ProfileDocument>(profile =>
                 profile.Id == parameters.UserId &&
+                !profile.IsDeleted &&
                 (profile.LastOnline == null || profile.LastOnline < parameters.LastOnline))
             .Set(profile => profile.LastOnline, parameters.LastOnline);
 }

@@ -29,6 +29,9 @@ public static class DependencyInjectionExtensions
         services.AddSingleton<GetProfilesQuery>();
         services.AddSingleton<GetProfiles>(sp => sp.GetRequiredService<GetProfilesQuery>().Execute);
 
+        services.AddSingleton<DeleteUserDataCommand>();
+        services.AddSingleton<DeleteUserData>(sp => sp.GetRequiredService<DeleteUserDataCommand>().Execute);
+        
         return services;
     }
 

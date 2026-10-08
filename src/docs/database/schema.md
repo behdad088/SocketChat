@@ -32,6 +32,8 @@ NOTE: Event handling is idempotent and order-tolerant: an incoming event whose `
 | IsActive       | boolean  | yes        | whether the user account is active                                                     |
 | LastOnline     | datetime | yes        | UTC timestamp                                                                          |
 | Quote          | string   | yes        | user general message in the profile                                                    |
+| IsDeleted      | boolean  | no         | true once the user has been deleted in the Identity service (see Data Deletion)        |
+| DeletedAt      | datetime | yes        | UTC timestamp of the deletion. Null if not deleted                                     |
 | Version        | int      | no         | version number, incremented on every change                                            |
 
 NOTE: The `Version` field mirrors the version number from the Identity service events. It is used for event idempotency (see the note above); no change history is kept for profiles in the Chat Service. The Identity service owns the user data and its audit trail.
@@ -166,9 +168,9 @@ The Chat Service stores PII only in the Profile document (names, email, phone nu
 
 When the Identity service publishes a **UserDeleted** event, the Chat Service:
 
-1. **Deletes the profile document** (`mt_doc_profiledocument`) for that user; this removes all PII held by the Chat Service.
+1. **Replaces the profile document with a tombstone** (`mt_doc_profiledocument`): every personal field is cleared, `IsDeleted` is set and `Version` takes the UserDeleted event's version. This removes all PII held by the Chat Service. The row is kept rather than deleted so that a late UserCreated or UserUpdated, which carries a lower version, is ignored by the version guard instead of re-creating the profile.
 2. **Deletes the user's channel rows** (`mt_doc_userchanneldocument` where `UserId` = deleted user); their chat list is gone.
-3. **Keeps conversations and messages intact.** The other participant keeps their conversation history. `Participants` and `SenderId` still contain the deleted user's GUID, which is not PII on its own; clients render it as "Deleted user" when no profile document is found for the id.
+3. **Keeps conversations and messages intact.** The other participant keeps their conversation history. `Participants` and `SenderId` still contain the deleted user's GUID, which is not PII on its own; clients render it as "Deleted user" when no profile is returned for the id (profile queries never return tombstones).
 4. **Message content authored by the deleted user is retained** (including entries in `mt_doc_messageversiondocument`). Messages belong to the conversation, not the account; the same rule chat products generally apply. If a stricter erasure policy is ever required, the follow-up would be to null out `Content` on the deleted user's messages and purge their message version snapshots.
 
 Like profile updates, the deletion handler must be idempotent: receiving UserDeleted for an already-deleted user is a no-op.

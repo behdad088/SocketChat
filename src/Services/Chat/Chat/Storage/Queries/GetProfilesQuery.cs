@@ -20,6 +20,7 @@ public class GetProfilesQuery
         if (parameters.UserIds.Count == 0)
             return [];
 
-        return await session.LoadManyAsync<ProfileDocument>(ct, parameters.UserIds);
+        var profiles = await session.LoadManyAsync<ProfileDocument>(ct, parameters.UserIds);
+        return profiles.Where(profile => !profile.IsDeleted).ToList();
     }
 }

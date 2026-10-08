@@ -26,7 +26,7 @@ public class GetProfileQuery
     {
         var profile = await session.LoadAsync<ProfileDocument>(parameters.UserId, ct);
 
-        return profile is null
+        return profile is null or { IsDeleted: true }
             ? new GetProfileResult.NotFound()
             : new GetProfileResult.Success(profile);
     }

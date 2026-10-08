@@ -16,6 +16,8 @@ public sealed record ProfileDocument
     public bool? IsActive { get; init; }
     public DateTimeOffset? LastOnline { get; init; }
     public string? Quote { get; init; }
+    public bool IsDeleted { get; init; }
+    public DateTimeOffset? DeletedAt { get; init; }
 
     public required int Version { get; init; }
 }
