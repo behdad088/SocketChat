@@ -23,11 +23,11 @@ NOTE: Event handling is idempotent and order-tolerant: an incoming event whose `
 |----------------|----------|------------|----------------------------------------------------------------------------------------|
 | Id             | string   | no         | string in guid format                                                                  |
 | Username       | string   | no         | username of the user                                                                   |
-| Firstname      | string   | no         | user firstname                                                                         |
-| Lastname       | string   | no         | user lastname                                                                          |
+| Firstname      | string   | yes        | user firstname                                                                         |
+| Lastname       | string   | yes        | user lastname                                                                          |
 | DisplayName    | string   | yes        | If the display name is null, the app can pick firstname and lastname as display name   |
 | Email          | string   | no         | user email address                                                                     |
-| PhoneNumber    | string   | no         | user phone number                                                                      |
+| PhoneNumber    | string   | yes        | user phone number                                                                      |
 | ProfilePicture | string   | yes        | user profile picture                                                                   |
 | IsActive       | boolean  | yes        | whether the user account is active                                                     |
 | LastOnline     | datetime | yes        | UTC timestamp                                                                          |
@@ -36,10 +36,13 @@ NOTE: Event handling is idempotent and order-tolerant: an incoming event whose `
 
 NOTE: The `Version` field mirrors the version number from the Identity service events. It is used for event idempotency (see the note above); no change history is kept for profiles in the Chat Service. The Identity service owns the user data and its audit trail.
 
-NOTE: The online status will be stored in the cache and will be written to the profile document (`LastOnline`) when the user goes offline.
+NOTE: `Firstname`, `Lastname` and `PhoneNumber` are nullable because they mirror what the Identity service's user events carry: a nullable name and last name, and no phone number yet. Blank strings from Identity are stored as null.
+
+NOTE: The online status will be stored in the cache and will be written to the profile document (`LastOnline`) when the user goes offline. `LastOnline` is the only profile field the Chat Service writes itself: the upsert from Identity events keeps it, writing it doesn't change `Version`, and a `LastOnline` older than the stored one is ignored.
 
 **Access patterns**
 *  **Id**: Retrieve the profile document by user ID.
+*  **Ids**: Retrieve several profiles at once, for example to render the chat list.
 
 # User Channel Document
 This table marks the channel between two users; it will be used to retrieve the conversation between two users. The table will be updated when a new conversation is created between two users.

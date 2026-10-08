@@ -14,7 +14,7 @@ public class ProfileDocumentTests(PostgresFixture fixture)
         var profile = NewProfile(version: 3) with
         {
             DisplayName = "Countess",
-            ProfilePicture = "https://example.com/ada.png",
+            ProfilePicture = "https://example.com/test.png",
             IsActive = true,
             LastOnline = new DateTimeOffset(2026, 10, 7, 8, 30, 0, TimeSpan.Zero),
             Quote = "That brain of mine is something more than merely mortal."
@@ -28,12 +28,21 @@ public class ProfileDocumentTests(PostgresFixture fixture)
     [Fact]
     public async Task Write_WithOnlyRequiredFields_LeavesOptionalFieldsNull()
     {
-        var profile = NewProfile(version: 1);
+        var profile = new ProfileDocument
+        {
+            Id = Guid.NewGuid().ToString(),
+            Username = "test",
+            Email = "test@example.com",
+            Version = 1
+        };
 
         await WriteAsync(profile);
 
         var loaded = await LoadAsync(profile.Id);
         loaded.ShouldNotBeNull();
+        loaded.Firstname.ShouldBeNull();
+        loaded.Lastname.ShouldBeNull();
+        loaded.PhoneNumber.ShouldBeNull();
         loaded.DisplayName.ShouldBeNull();
         loaded.ProfilePicture.ShouldBeNull();
         loaded.IsActive.ShouldBeNull();
@@ -75,10 +84,10 @@ public class ProfileDocumentTests(PostgresFixture fixture)
     private static ProfileDocument NewProfile(int version) => new()
     {
         Id = Guid.NewGuid().ToString(),
-        Username = "ada",
-        Firstname = "Ada",
-        Lastname = "Lovelace",
-        Email = "ada@example.com",
+        Username = "test",
+        Firstname = "Test",
+        Lastname = "TestLastname",
+        Email = "test@example.com",
         PhoneNumber = "+46700000000",
         Version = version
     };

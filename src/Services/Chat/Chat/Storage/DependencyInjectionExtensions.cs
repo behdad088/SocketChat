@@ -1,3 +1,5 @@
+using Chat.Storage.Commands;
+using Chat.Storage.Queries;
 using JasperFx;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
@@ -13,6 +15,19 @@ public static class DependencyInjectionExtensions
             .AddMarten(options => ConfigureMarten(options, connectionString))
             .UseLightweightSessions()
             .ApplyAllDatabaseChangesOnStartup();
+
+        
+        services.AddSingleton<UpsertProfileCommand>();
+        services.AddSingleton<UpsertProfile>(sp => sp.GetRequiredService<UpsertProfileCommand>().Execute);
+        
+        services.AddSingleton<SetLastOnlineCommand>();
+        services.AddSingleton<SetLastOnline>(sp => sp.GetRequiredService<SetLastOnlineCommand>().Execute);
+        
+        services.AddSingleton<GetProfileQuery>();
+        services.AddSingleton<GetProfile>(sp =>  sp.GetRequiredService<GetProfileQuery>().Execute);
+        
+        services.AddSingleton<GetProfilesQuery>();
+        services.AddSingleton<GetProfiles>(sp => sp.GetRequiredService<GetProfilesQuery>().Execute);
 
         return services;
     }

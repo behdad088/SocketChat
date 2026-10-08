@@ -7,7 +7,8 @@ public class ChatMartenRegistry : MartenRegistry
 {
     public ChatMartenRegistry()
     {
-        For<ProfileDocument>();
+        For<ProfileDocument>()
+            .UseOptimisticConcurrency(true);
         For<UserChannelDocument>()
             .UseNumericRevisions(true)
             .Metadata(metadata => metadata.Revision.MapTo(doc => doc.Version))

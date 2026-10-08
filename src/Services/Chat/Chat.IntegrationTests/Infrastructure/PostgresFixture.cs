@@ -1,4 +1,5 @@
 using Chat.Storage;
+using JasperFx;
 using Marten;
 using Npgsql;
 using Testcontainers.PostgreSql;
@@ -44,6 +45,26 @@ public class PostgresFixture : IAsyncLifetime
 
         return new NpgsqlConnectionStringBuilder(_postgres.GetConnectionString()) { Database = databaseName }
             .ConnectionString;
+    }
+
+    // Marten's SaveChangesAsync throws when another session wrote the document after this one
+    // loaded it; running the work again in a fresh session reloads it.
+    public async Task SaveWithRetryAsync(Func<IDocumentSession, Task> work)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                await using var session = Store.LightweightSession();
+                await work(session);
+                await session.SaveChangesAsync();
+                return;
+            }
+            catch (Exception exception)
+                when (exception is ConcurrencyException or DocumentAlreadyExistsException && attempt < 50)
+            {
+            }
+        }
     }
 
     public Task<IReadOnlyList<string>> GetTableNamesAsync() =>
