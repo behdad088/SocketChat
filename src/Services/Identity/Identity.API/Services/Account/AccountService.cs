@@ -269,6 +269,51 @@ public class AccountService : IAccountService
         return AccountOperationResult<UserProfile>.Success(ToProfile(user));
     }
 
+    public async Task<AccountOperationResult> DeleteAccountAsync(string userId, string password)
+    {
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user is null)
+        {
+            return AccountOperationResult.Failure(AccountErrorCode.NotFound, "User not found.");
+        }
+
+        if (!await _userManager.HasPasswordAsync(user))
+        {
+            return AccountOperationResult.Failure(
+                AccountErrorCode.PasswordRequired, "This account has no password to confirm the deletion with.");
+        }
+
+        if (await _userManager.IsLockedOutAsync(user))
+        {
+            return AccountOperationResult.Failure(
+                AccountErrorCode.LockedOut, "Too many failed attempts. Try again later.");
+        }
+
+        // Counted towards lockout, so a stolen token can't be used to guess the password here.
+        if (!await _userManager.CheckPasswordAsync(user, password))
+        {
+            await _userManager.AccessFailedAsync(user);
+            return AccountOperationResult.Failure(AccountErrorCode.InvalidPassword, "The password is incorrect.");
+        }
+
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync();
+
+        var result = await _userManager.DeleteAsync(user);
+        if (!result.Succeeded)
+        {
+            return AccountOperationResult.Failure(
+                AccountErrorCode.ValidationFailed,
+                result.Errors.Select(e => e.Description).ToArray());
+        }
+
+        var occurredAt = DateTimeOffset.UtcNow;
+        _outboxWriter.Enqueue(UserDeletedEvent.FromUser(user, occurredAt), occurredAt);
+        await _dbContext.SaveChangesAsync();
+        await transaction.CommitAsync();
+
+        return AccountOperationResult.Success();
+    }
+
     private static UserProfile ToProfile(ApplicationUser user) =>
         new(user.UserName!, user.Email!, user.Name, user.LastName, user.ProfilePicture, user.Version);
 

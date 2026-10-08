@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Security.Claims;
 using Duende.IdentityServer;
 using Identity.API.Services.Account;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Identity.API.Endpoints;
 
@@ -42,6 +43,11 @@ public static class AccountEndpoints
             .AddEndpointFilter<ValidationFilter<UpdateProfileRequest>>()
             .RequireAuthorization(IdentityServerConstants.LocalApi.PolicyName)
             .RequireRateLimiting("profile");
+
+        group.MapDelete(string.Empty, DeleteAccountAsync)
+            .AddEndpointFilter<ValidationFilter<DeleteAccountRequest>>()
+            .RequireAuthorization(IdentityServerConstants.LocalApi.PolicyName)
+            .RequireRateLimiting("delete-account");
 
         return app;
     }
@@ -192,6 +198,24 @@ public static class AccountEndpoints
             profile.UserName, profile.Email, profile.Name, profile.LastName, profile.ProfilePicture));
     }
 
+    private static async Task<IResult> DeleteAccountAsync(
+        [FromBody] DeleteAccountRequest request, ClaimsPrincipal principal, IAccountService accountService)
+    {
+        var userId = principal.FindFirstValue("sub");
+        if (string.IsNullOrEmpty(userId))
+        {
+            return Results.Unauthorized();
+        }
+
+        var result = await accountService.DeleteAccountAsync(userId, request.Password);
+        if (!result.Succeeded)
+        {
+            return MapProfileError(result.ErrorCode, result.Errors);
+        }
+
+        return Results.NoContent();
+    }
+
     private static bool TryParseETagVersion(string? etag, out int version)
     {
         version = 0;
@@ -220,6 +244,18 @@ public static class AccountEndpoints
             AccountErrorCode.ConcurrencyConflict => Results.Problem(
                 statusCode: StatusCodes.Status412PreconditionFailed,
                 title: "Profile has changed",
+                detail: string.Join(" ", errors)),
+            AccountErrorCode.InvalidPassword => Results.Problem(
+                statusCode: StatusCodes.Status403Forbidden,
+                title: "Incorrect password",
+                detail: string.Join(" ", errors)),
+            AccountErrorCode.LockedOut => Results.Problem(
+                statusCode: StatusCodes.Status403Forbidden,
+                title: "Account locked",
+                detail: string.Join(" ", errors)),
+            AccountErrorCode.PasswordRequired => Results.Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "Password required",
                 detail: string.Join(" ", errors)),
             _ => Results.Problem(
                 statusCode: StatusCodes.Status400BadRequest,

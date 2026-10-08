@@ -118,6 +118,42 @@ public class UserEventsTests(IdentityApiSpecification specification)
     }
 
     [Fact]
+    public async Task DeleteAccountPublishesUserDeletedCloudEvent()
+    {
+        // Arrange
+        await using var consumer = await RabbitMqTestConsumer.CreateAsync(
+            specification.RabbitMqAmqpUri,
+            "identity.user.deleted");
+
+        var email = await CreateUserViaUserManagerAsync();
+        var userId = await GetUserIdAsync(email);
+        var token = await GetTokenAsync(email);
+
+        var request = new HttpRequestMessage(HttpMethod.Delete, "/api/account")
+        {
+            Content = JsonContent.Create(new { password = Password })
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        // Act
+        var response = await _client.SendAsync(request);
+
+        // Assert
+        response.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+
+        var message = await consumer.WaitForMessageAsync(MessageTimeout);
+        message.ShouldNotBeNull("expected a CloudEvent on identity.user.deleted");
+        var envelope = message.Value;
+
+        envelope.GetProperty("type").GetString().ShouldBe("com.socketchat.identity.user.deleted");
+
+        var data = envelope.GetProperty("data");
+        data.GetProperty("id").GetString().ShouldBe(userId);
+        data.GetProperty("version").GetInt32().ShouldBe(1);
+        data.TryGetProperty("email", out _).ShouldBeFalse();
+    }
+
+    [Fact]
     public async Task ResetPasswordPublishesNoEvent()
     {
         // Arrange
@@ -163,6 +199,13 @@ public class UserEventsTests(IdentityApiSpecification specification)
         };
         (await userManager.CreateAsync(user, Password)).Succeeded.ShouldBeTrue();
         return email;
+    }
+
+    private async Task<string> GetUserIdAsync(string email)
+    {
+        using var scope = specification._factory!.Services.CreateScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        return (await userManager.FindByEmailAsync(email))!.Id;
     }
 
     private async Task<string> GetTokenAsync(string email)

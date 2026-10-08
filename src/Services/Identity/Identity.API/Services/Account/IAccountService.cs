@@ -20,4 +20,5 @@ public interface IAccountService
     Task<AccountOperationResult<UserProfile>> GetProfileAsync(string userId);
     Task<AccountOperationResult<UserProfile>> UpdateProfileAsync(
         string userId, int expectedVersion, string? name, string? lastName, string profilePicture);
+    Task<AccountOperationResult> DeleteAccountAsync(string userId, string password);
 }

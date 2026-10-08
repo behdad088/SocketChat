@@ -16,6 +16,7 @@ public static class DependencyInjectionExtensions
         var registry = new OutboxEventRegistry();
         registry.Add<UserCreatedEvent>();
         registry.Add<UserUpdatedEvent>();
+        registry.Add<UserDeletedEvent>();
         services.AddSingleton(registry);
 
         services.AddScoped(typeof(IEventPublisher<>), typeof(EventPublisher<>));

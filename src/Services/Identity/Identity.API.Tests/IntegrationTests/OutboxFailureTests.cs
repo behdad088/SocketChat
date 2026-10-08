@@ -91,4 +91,46 @@ public class OutboxFailureTests(IdentityApiSpecification specification)
         var db = assertScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         (await db.OutboxMessages.AsNoTracking().CountAsync()).ShouldBe(0);
     }
+
+    [Fact]
+    public async Task DeleteRollsBackTheUserWhenTheOutboxWriteFails()
+    {
+        // Arrange
+        specification.CreateClientAndBindSpy();
+
+        var throwingWriter = Substitute.For<IOutboxWriter>();
+        throwingWriter.Enqueue(Arg.Any<UserDeletedEvent>(), Arg.Any<DateTimeOffset>())
+            .Returns<OutboxMessage>(_ => throw new InvalidOperationException("outbox write failed"));
+
+        var userId = Guid.NewGuid().ToString();
+        var email = $"delete-rollback-{Guid.NewGuid():N}@test.com";
+        using (var scope = specification._factory!.Services.CreateScope())
+        {
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var user = new ApplicationUser { Id = userId, UserName = email, Email = email, EmailConfirmed = true };
+            (await userManager.CreateAsync(user, Password)).Succeeded.ShouldBeTrue();
+        }
+
+        // Act
+        using (var scope = specification._factory!.Services.CreateScope())
+        {
+            var serviceProvider = scope.ServiceProvider;
+            var service = new AccountService(
+                serviceProvider.GetRequiredService<UserManager<ApplicationUser>>(),
+                serviceProvider.GetRequiredService<IVerificationEmailService>(),
+                serviceProvider.GetRequiredService<ApplicationDbContext>(),
+                throwingWriter);
+
+            await Should.ThrowAsync<InvalidOperationException>(() => service.DeleteAccountAsync(userId, Password));
+        }
+
+        // Assert
+        using var assertScope = specification._factory!.Services.CreateScope();
+        var assertUserManager = assertScope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        (await assertUserManager.FindByIdAsync(userId)).ShouldNotBeNull();
+
+        var db = assertScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        (await db.OutboxMessages.AsNoTracking()
+            .CountAsync(m => m.EventType == UserDeletedEvent.CloudEventType)).ShouldBe(0);
+    }
 }

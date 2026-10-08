@@ -18,4 +18,7 @@ public static class EventConstants
     
     public const string UserUpdatedCloudEventType = "com.socketchat.identity.user.updated";
     public const string UserUpdatedExchangeName = "identity.user.updated";
+
+    public const string UserDeletedCloudEventType = "com.socketchat.identity.user.deleted";
+    public const string UserDeletedExchangeName = "identity.user.deleted";
 }

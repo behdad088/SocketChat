@@ -56,6 +56,12 @@ public record VerifyEmailRequest
     public string Code { get; init; } = string.Empty;
 }
 
+public record DeleteAccountRequest
+{
+    [Required]
+    public string Password { get; init; } = string.Empty;
+}
+
 public record UpdateProfileRequest
 {
     [MaxLength(50)]
