@@ -44,17 +44,15 @@ public class UserProfileEventsTests(EventProcessorFixture fixture)
             ProfilePicture = "https://test.com/renamed.png",
             Version = 1
         }));
+        await fixture.Consumed.WaitAsync(await fixture.Identity.PublishUserUpdatedAsync(
+            user with { Name = "Renamed", LastName = null, ProfilePicture = "", Version = 2 }));
 
-        (await fixture.LoadProfileAsync(user.Id)).ShouldBe(new ProfileDocument
-        {
-            Id = user.Id,
-            Username = "renamed.user",
-            Email = "renamed@test.com",
-            Firstname = "Renamed",
-            Lastname = "RenamedLastname",
-            ProfilePicture = "https://test.com/renamed.png",
-            Version = 1
-        });
+        var profile = await fixture.LoadProfileAsync(user.Id);
+        profile.ShouldNotBeNull();
+        profile.Firstname.ShouldBe("Renamed");
+        profile.Lastname.ShouldBeNull();
+        profile.ProfilePicture.ShouldBeNull();
+        profile.Version.ShouldBe(2);
     }
 
     [Fact]

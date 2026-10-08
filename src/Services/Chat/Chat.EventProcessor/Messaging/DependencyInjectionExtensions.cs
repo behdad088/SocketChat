@@ -16,6 +16,7 @@ public static class DependencyInjectionExtensions
 
         services.AddSingleton<IIdentityEventHandler<UserCreatedEvent>, UserCreatedHandler>();
         services.AddSingleton<IIdentityEventHandler<UserUpdatedEvent>, UserUpdatedHandler>();
+        services.AddSingleton<IIdentityEventHandler<UserDeletedEvent>, UserDeletedHandler>();
 
         // Host start waits until the queues are bound; Identity's fanout exchanges drop events that reach
         // them before a queue is bound.
@@ -25,6 +26,7 @@ public static class DependencyInjectionExtensions
         {
             x.AddConsumer<IdentityEventConsumer<UserCreatedEvent>>();
             x.AddConsumer<IdentityEventConsumer<UserUpdatedEvent>>();
+            x.AddConsumer<IdentityEventConsumer<UserDeletedEvent>>();
 
             x.UsingRabbitMq((context, cfg) =>
             {
@@ -36,6 +38,7 @@ public static class DependencyInjectionExtensions
 
                 cfg.ReceiveIdentityEvent<UserCreatedEvent>(context);
                 cfg.ReceiveIdentityEvent<UserUpdatedEvent>(context);
+                cfg.ReceiveIdentityEvent<UserDeletedEvent>(context);
             });
         });
 

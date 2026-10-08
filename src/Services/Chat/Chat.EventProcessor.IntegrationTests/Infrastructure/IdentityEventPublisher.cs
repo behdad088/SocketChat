@@ -13,6 +13,8 @@ public sealed class IdentityEventPublisher : IAsyncDisposable
     public const string UserCreatedExchange = "identity.user.created";
     public const string UserUpdatedType = "com.socketchat.identity.user.updated";
     public const string UserUpdatedExchange = "identity.user.updated";
+    public const string UserDeletedType = "com.socketchat.identity.user.deleted";
+    public const string UserDeletedExchange = "identity.user.deleted";
 
     private readonly IConnection _connection;
     private readonly IChannel _channel;
@@ -35,6 +37,9 @@ public sealed class IdentityEventPublisher : IAsyncDisposable
 
     public Task<Guid> PublishUserUpdatedAsync(UserEventData user) =>
         PublishAsync(UserUpdatedExchange, UserUpdatedType, user);
+
+    public Task<Guid> PublishUserDeletedAsync(UserDeletedEventData user) =>
+        PublishAsync(UserDeletedExchange, UserDeletedType, user);
 
     public async Task<Guid> PublishAsync(string exchange, string type, object? data)
     {
@@ -127,3 +132,8 @@ public sealed record UserEventData(
         Version: version,
         OccurredAt: DateTimeOffset.UtcNow);
 }
+
+public sealed record UserDeletedEventData(
+    [property: JsonPropertyName("id")] string Id,
+    [property: JsonPropertyName("version")] int Version,
+    [property: JsonPropertyName("occurred_at")] DateTimeOffset OccurredAt);
