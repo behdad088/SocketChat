@@ -7,10 +7,10 @@ public class CloudEventFactoryTests
 {
     private static UserCreatedEvent SampleEvent(DateTimeOffset occurredAt) => new(
         Id: "user-1",
-        Email: "ada@example.com",
-        Username: "ada@example.com",
-        Name: "Ada",
-        LastName: "Lovelace",
+        Email: "test@example.com",
+        Username: "test@example.com",
+        Name: "test",
+        LastName: "test",
         ProfilePicture: "https://example.com/p.png",
         EmailConfirmed: false,
         Version: 0,
@@ -59,10 +59,10 @@ public class CloudEventFactoryTests
 
         var data = json.GetProperty("data");
         data.GetProperty("id").GetString().ShouldBe("user-1");
-        data.GetProperty("email").GetString().ShouldBe("ada@example.com");
-        data.GetProperty("username").GetString().ShouldBe("ada@example.com");
-        data.GetProperty("name").GetString().ShouldBe("Ada");
-        data.GetProperty("last_name").GetString().ShouldBe("Lovelace");
+        data.GetProperty("email").GetString().ShouldBe("test@example.com");
+        data.GetProperty("username").GetString().ShouldBe("test@example.com");
+        data.GetProperty("name").GetString().ShouldBe("test");
+        data.GetProperty("last_name").GetString().ShouldBe("test");
         data.GetProperty("profile_picture").GetString().ShouldBe("https://example.com/p.png");
         data.GetProperty("email_confirmed").GetBoolean().ShouldBeFalse();
         data.GetProperty("version").GetInt32().ShouldBe(0);

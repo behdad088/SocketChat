@@ -10,6 +10,7 @@ public class StorageRegistrationTests
     [Theory]
     [InlineData(typeof(UpsertProfile))]
     [InlineData(typeof(SetLastOnline))]
+    [InlineData(typeof(DeleteUserData))]
     [InlineData(typeof(GetProfile))]
     [InlineData(typeof(GetProfiles))]
     public void AddChatStorage_RegistersTheStorageOperation(Type operation)

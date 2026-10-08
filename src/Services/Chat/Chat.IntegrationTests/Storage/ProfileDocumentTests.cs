@@ -61,7 +61,7 @@ public class ProfileDocumentTests(PostgresFixture fixture)
         keys.ShouldBe(
         [
             "Id", "Username", "Firstname", "Lastname", "DisplayName", "Email", "PhoneNumber",
-            "ProfilePicture", "IsActive", "LastOnline", "Quote", "Version"
+            "ProfilePicture", "IsActive", "LastOnline", "Quote", "IsDeleted", "DeletedAt", "Version"
         ], ignoreOrder: true);
     }
 
