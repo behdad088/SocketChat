@@ -9,7 +9,10 @@ public enum AccountErrorCode
     InvalidCode,
     ExpiredCode,
     AlreadyActivated,
-    ConcurrencyConflict
+    ConcurrencyConflict,
+    InvalidPassword,
+    LockedOut,
+    PasswordRequired
 }
 
 public sealed class AccountOperationResult

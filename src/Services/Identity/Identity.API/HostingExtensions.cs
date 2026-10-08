@@ -73,6 +73,18 @@ internal static class HostingExtensions
                 o.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
                 o.QueueLimit = 0;
             });
+            // Per client: the limiter runs before authentication, so a shared window would let
+            // anonymous requests block every user's deletion.
+            options.AddPolicy("delete-account", context =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = 5,
+                        Window = TimeSpan.FromMinutes(1),
+                        QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                        QueueLimit = 0
+                    }));
         });
         builder.Services.AddMailTrapServicesApiClient(builder.Configuration);
 
