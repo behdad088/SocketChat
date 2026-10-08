@@ -157,8 +157,13 @@ services:
       - ASPNETCORE_Kestrel__Certificates__Default__Password=dev
       - ASPNETCORE_Kestrel__Certificates__Default__Path=/app/certificates/chat-eventprocessor.pfx
       - ConnectionStrings__ChatDB=Host=chatDb;Port=5432;Database=ChatDb;User Id=postgres;Password=postgres
+      - RabbitMQ__Uri=rabbitmq://rabbitmq:5672
+      - RabbitMQ__Username=socketchat
+      - RabbitMQ__Password=socketchat
     depends_on:
       chatDb:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     ports:
       - "7002:8080"

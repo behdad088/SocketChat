@@ -26,4 +26,17 @@ public class StartupTests(EventProcessorFixture fixture)
             "select to_regclass('public.mt_doc_profiledocument')::text", connection);
         (await command.ExecuteScalarAsync()).ShouldBe("mt_doc_profiledocument");
     }
+
+    [Fact]
+    public async Task Startup_ReportsTheRabbitMqBusHealthy()
+    {
+        using var client = fixture.Factory.CreateClient();
+
+        var response = await client.GetAsync("/hc");
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        body.RootElement.GetProperty("entries").GetProperty("masstransit-bus").GetProperty("status").GetString()
+            .ShouldBe("Healthy");
+    }
 }

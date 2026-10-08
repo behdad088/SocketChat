@@ -1,3 +1,4 @@
+using Chat.EventProcessor.Messaging;
 using Chat.Storage;
 using FluentValidation;
 using Serilog;
@@ -13,6 +14,7 @@ var chatDbConnectionString = builder.Configuration.GetConnectionString("ChatDB")
                              ?? throw new InvalidOperationException("Connection string 'ChatDB' is missing.");
 
 builder.Services.AddChatStorage(chatDbConnectionString);
+builder.Services.AddIdentityEventConsumers(builder.Configuration);
 builder.Services.AddDefaultHealthChecks()
     .AddNpgSql(chatDbConnectionString, name: "postgres", tags: ["ready", "liveness"]);
 
