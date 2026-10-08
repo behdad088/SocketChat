@@ -17,6 +17,7 @@
         <PackageReference Include="AutoFixture.Xunit2"/>
         <PackageReference Include="Testcontainers" />
         <PackageReference Include="Testcontainers.PostgreSql" />
+        <PackageReference Include="Testcontainers.RabbitMq" />
         <PackageReference Include="WebMotions.Fake.Authentication.JwtBearer" />
         <PackageReference Include="GitHubActionsTestLogger" />
     </ItemGroup>
