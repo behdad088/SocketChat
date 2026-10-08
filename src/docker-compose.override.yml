@@ -160,6 +160,8 @@ services:
       - RabbitMQ__Uri=rabbitmq://rabbitmq:5672
       - RabbitMQ__Username=socketchat
       - RabbitMQ__Password=socketchat
+      - Logger__elasticsearch=http://elasticsearch:9200
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
     depends_on:
       chatDb:
         condition: service_healthy

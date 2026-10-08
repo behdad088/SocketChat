@@ -32,8 +32,8 @@ public sealed class IdentityEventPublisher : IAsyncDisposable
         return new IdentityEventPublisher(connection, channel);
     }
 
-    public Task<Guid> PublishUserCreatedAsync(UserEventData user) =>
-        PublishAsync(UserCreatedExchange, UserCreatedType, user);
+    public Task<Guid> PublishUserCreatedAsync(UserEventData user, string? traceParent = null) =>
+        PublishAsync(UserCreatedExchange, UserCreatedType, user, traceParent);
 
     public Task<Guid> PublishUserUpdatedAsync(UserEventData user) =>
         PublishAsync(UserUpdatedExchange, UserUpdatedType, user);
@@ -41,7 +41,7 @@ public sealed class IdentityEventPublisher : IAsyncDisposable
     public Task<Guid> PublishUserDeletedAsync(UserDeletedEventData user) =>
         PublishAsync(UserDeletedExchange, UserDeletedType, user);
 
-    public async Task<Guid> PublishAsync(string exchange, string type, object? data)
+    public async Task<Guid> PublishAsync(string exchange, string type, object? data, string? traceParent = null)
     {
         var id = Guid.NewGuid();
         var cloudEvent = new Dictionary<string, object?>
@@ -54,6 +54,8 @@ public sealed class IdentityEventPublisher : IAsyncDisposable
             ["time"] = DateTimeOffset.UtcNow,
             ["data"] = data
         };
+        if (traceParent is not null)
+            cloudEvent["traceparent"] = traceParent;
 
         await PublishBodyAsync(exchange, id, JsonSerializer.SerializeToUtf8Bytes(cloudEvent));
         return id;
