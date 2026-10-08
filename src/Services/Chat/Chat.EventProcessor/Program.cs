@@ -1,10 +1,18 @@
+using Chat.EventProcessor.Configurations;
 using Chat.EventProcessor.Messaging;
 using Chat.Storage;
 using FluentValidation;
 using Serilog;
+using Shared.Configurations;
 using Shared.HealthChecks;
+using Shared.Logger;
+using Shared.OpenTelemetry;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.TrySetConfiguration<LoggerConfigurations>(builder.Configuration, out var loggerConfigurations);
+builder.Services.AddOpenTelemetryOtl("chat.eventprocessor");
+builder.SetupLogging("Chat Event Processor", builder.Environment.EnvironmentName, loggerConfigurations.ElasticSearch);
 
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
