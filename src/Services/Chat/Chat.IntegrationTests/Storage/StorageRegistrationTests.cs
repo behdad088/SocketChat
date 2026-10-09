@@ -13,6 +13,9 @@ public class StorageRegistrationTests
     [InlineData(typeof(DeleteUserData))]
     [InlineData(typeof(GetProfile))]
     [InlineData(typeof(GetProfiles))]
+    [InlineData(typeof(StartConversation))]
+    [InlineData(typeof(GetChannel))]
+    [InlineData(typeof(GetConversation))]
     public void AddChatStorage_RegistersTheStorageOperation(Type operation)
     {
         using var provider = new ServiceCollection()

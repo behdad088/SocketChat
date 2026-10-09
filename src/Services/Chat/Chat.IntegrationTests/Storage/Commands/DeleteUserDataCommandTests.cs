@@ -135,7 +135,8 @@ public class DeleteUserDataCommandTests(PostgresFixture fixture)
     {
         Id = UserChannelDocument.CreateId(userId, peerId),
         ConversationId = conversationId,
-        UserId = userId
+        UserId = userId,
+        PeerUserId = peerId
     };
 
     private async Task<string> CreateProfileAsync(int version)
