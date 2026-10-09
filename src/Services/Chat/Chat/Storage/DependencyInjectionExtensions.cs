@@ -44,6 +44,9 @@ public static class DependencyInjectionExtensions
         services.AddSingleton<SetChannelPreferencesCommand>();
         services.AddSingleton<SetChannelPreferences>(sp => sp.GetRequiredService<SetChannelPreferencesCommand>().Execute);
         
+        services.AddSingleton<ListUserChannelsQuery>();
+        services.AddSingleton<ListUserChannels>(sp => sp.GetRequiredService<ListUserChannelsQuery>().Execute);
+        
         return services;
     }
 

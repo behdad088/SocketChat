@@ -25,13 +25,14 @@ public class SchemaTests(PostgresFixture fixture)
     }
 
     [Fact]
-    public async Task Schema_IndexesUserChannelsByUserIdAndLastMessageAt()
+    public async Task Schema_IndexesUserChannelsForTheChatList()
     {
-        var definition = await fixture.GetIndexDefinitionAsync("mt_doc_userchanneldocument_idx_user_id_last_message_at");
+        var definition = await fixture.GetIndexDefinitionAsync("mt_doc_userchanneldocument_idx_chat_list");
 
         definition.ShouldBe(
-            "CREATE INDEX mt_doc_userchanneldocument_idx_user_id_last_message_at ON public.mt_doc_userchanneldocument " +
-            "USING btree (((data ->> 'UserId'::text)), mt_immutable_timestamptz((data ->> 'LastMessageAt'::text)))");
+            "CREATE INDEX mt_doc_userchanneldocument_idx_chat_list ON public.mt_doc_userchanneldocument " +
+            "USING btree (((data ->> 'UserId'::text)), (((data ->> 'IsPinned'::text))::boolean), " +
+            "((data ->> 'LastMessageId'::text)))");
     }
 
     [Fact]
