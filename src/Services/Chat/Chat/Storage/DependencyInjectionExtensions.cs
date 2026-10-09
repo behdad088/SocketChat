@@ -46,6 +46,9 @@ public static class DependencyInjectionExtensions
         
         services.AddSingleton<ListUserChannelsQuery>();
         services.AddSingleton<ListUserChannels>(sp => sp.GetRequiredService<ListUserChannelsQuery>().Execute);
+
+        services.AddSingleton<MarkChannelReadCommand>();
+        services.AddSingleton<MarkChannelRead>(sp => sp.GetRequiredService<MarkChannelReadCommand>().Execute);
         
         return services;
     }
