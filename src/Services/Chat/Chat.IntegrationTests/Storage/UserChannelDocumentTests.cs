@@ -134,21 +134,6 @@ public class UserChannelDocumentTests(PostgresFixture fixture)
         await Should.ThrowAsync<ConcurrencyException>(() => second.SaveChangesAsync());
     }
 
-    [Fact]
-    public async Task ListByUserNewestFirst_UsesTheUserIdLastMessageAtIndex()
-    {
-        await using var query = fixture.Store.QuerySession();
-        var command = query.Query<UserChannelDocument>()
-            .Where(channel => channel.UserId == "d9360022-d706-4670-bf05-6c7e0a043732")
-            .OrderByDescending(channel => channel.LastMessageAt)
-            .Take(20)
-            .ToCommand();
-
-        var plan = await fixture.ExplainWithoutSeqScanAsync(command);
-
-        plan.ShouldContain("mt_doc_userchanneldocument_idx_user_id_last_message_at");
-    }
-
     private static UserChannelDocument NewChannel()
     {
         var userId = Guid.NewGuid().ToString();

@@ -71,7 +71,7 @@ Each user owns their own row, so per-user preferences (state, pin, read position
 | IsPrivate           | boolean  | no         | true if this user has made the conversation private (see NOTE below)                                                    |
 | LastReadMessageId   | string   | yes        | ULID of the last message this user has read. Unread messages are those with Id > LastReadMessageId. Null = nothing read. |
 | LastMessageId       | string   | yes        | ULID of the newest message reflected in LastMessageAt and LatestMessageBody (see NOTE below).                            |
-| LastMessageAt       | datetime | yes        | UTC timestamp of the latest message in the conversation, denormalized here so the chat list can be sorted by recency.    |
+| LastMessageAt       | datetime | yes        | UTC timestamp of the latest message in the conversation, denormalized here for display in the chat list.                 |
 | LatestMessageBody   | string   | yes        | The latest message in the channel.                                                                                       |
 | TotalUnreadMessages | int      | no         | The total unread messages since the last read (LastReadMessageId). default is set to 0                                   |
 | Version             | int      | no         | version number, used for optimistic concurrency; no change history is kept for channel documents                         |
@@ -80,17 +80,17 @@ NOTE: Read state is tracked with `LastReadMessageId` rather than a per-message s
 
 NOTE: `LastMessageId` is the write high-water mark for the denormalized latest-message fields (`LastMessageAt`, `LatestMessageBody`) and is separate from `LastReadMessageId`, which tracks read state. Competing consumers can persist messages out of order, so a writer only overwrites those fields when its message's ULID is greater than the stored `LastMessageId`. A ULID comparison is exact; comparing `LastMessageAt` timestamps is not, because of clock skew and same-millisecond messages.
 
-NOTE: `LastMessageAt` is duplicated from the Conversation document onto both participants' channel rows whenever a message is sent, so that "list my conversations, newest first" is a single indexed query on this table without joining to `mt_doc_conversationdocument`.
+NOTE: `LastMessageId`, `LastMessageAt` and `LatestMessageBody` are duplicated onto both participants' channel rows whenever a message is sent, so that "list my conversations, newest first" is a single indexed query on this table without joining to `mt_doc_conversationdocument`. The list is ordered by `LastMessageId`, not `LastMessageAt`: a ULID is unique and time-ordered, so the paging cursor never ties, while two conversations can share a timestamp.
 
 NOTE: Setting `IsPrivate` to true retroactively soft-deletes (`IsDeleted`/`DeletedAt`, same mechanism as an individual message delete) every message previously sent by that user in the conversation; the other participant is left seeing only their own messages. This is one-way; turning `IsPrivate` back off does not restore the deleted messages. `LastMessageAt`, `LatestMessageBody`, and `TotalUnreadMessages` on both participants' channel rows are recomputed afterward to reflect the surviving messages.
 
 **Access patterns**
 *  **Id**: {user_id}:{peer_user_id}. to get the conversation between two users.
-*  **UserId**: to get all the conversations for a user, sorted by `LastMessageAt` descending.
+*  **UserId**: the chat list. A user's channels that have at least one message, pinned channels first, then by `LastMessageId` descending, paged with a `(IsPinned, LastMessageId)` cursor. Archived channels are left out, and listed on their own when asked for.
 
 **indexes**
 *  **Id**: primary key
-*  **(UserId, LastMessageAt)**: composite secondary index to list a user's conversations ordered by recency.
+*  **(UserId, IsPinned, LastMessageId)**: composite secondary index for the chat list (`mt_doc_userchanneldocument_idx_chat_list`).
 
 # Conversation Document
 This table stores the conversation channel information shared by all participants, like the participant list. The table will be updated when a new message is sent in the conversation.

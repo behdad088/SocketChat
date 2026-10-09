@@ -13,8 +13,8 @@ public class ChatMartenRegistry : MartenRegistry
             .UseNumericRevisions(true)
             .Metadata(metadata => metadata.Revision.MapTo(doc => doc.Version))
             .Index(
-                doc => new { doc.UserId, doc.LastMessageAt },
-                index => index.Name = "mt_doc_userchanneldocument_idx_user_id_last_message_at");
+                doc => new { doc.UserId, doc.IsPinned, doc.LastMessageId },
+                index => index.Name = "mt_doc_userchanneldocument_idx_chat_list");
 
         For<ConversationDocument>();
 
