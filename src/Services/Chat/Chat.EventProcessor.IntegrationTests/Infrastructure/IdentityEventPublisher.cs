@@ -16,6 +16,9 @@ public sealed class IdentityEventPublisher : IAsyncDisposable
     public const string UserDeletedType = "com.socketchat.identity.user.deleted";
     public const string UserDeletedExchange = "identity.user.deleted";
 
+    // MassTransit adds this header to a dead-lettered message only when the message was retried first.
+    public const string RetryCountHeader = "MT-Fault-RetryCount";
+
     private readonly IConnection _connection;
     private readonly IChannel _channel;
 
@@ -68,8 +71,19 @@ public sealed class IdentityEventPublisher : IAsyncDisposable
         return id;
     }
 
-    // A message MassTransit dead-letters keeps its body and AMQP message id in `<queue>_error`.
-    public async Task<bool> IsInErrorQueueAsync(string queue, Guid messageId)
+    public async Task<string> BindQueueAsync(string exchange)
+    {
+        await _channel.ExchangeDeclareAsync(exchange, ExchangeType.Fanout, durable: true, autoDelete: false);
+        var queue = await _channel.QueueDeclareAsync(string.Empty, durable: false, exclusive: true, autoDelete: true);
+        await _channel.QueueBindAsync(queue.QueueName, exchange, routingKey: string.Empty);
+        return queue.QueueName;
+    }
+
+    public Task<uint> CountMessagesAsync(string queue) => _channel.MessageCountAsync(queue);
+
+    // A message MassTransit dead-letters keeps its body and AMQP message id in `<queue>_error`. Returns its
+    // headers, or null when it doesn't arrive within 30 s.
+    public async Task<IDictionary<string, object?>?> WaitForErrorQueueAsync(string queue, Guid messageId)
     {
         var deadline = DateTime.UtcNow.AddSeconds(30);
         while (DateTime.UtcNow < deadline)
@@ -81,7 +95,7 @@ public sealed class IdentityEventPublisher : IAsyncDisposable
                 while (await channel.BasicGetAsync($"{queue}_error", autoAck: true) is { } message)
                 {
                     if (message.BasicProperties.MessageId == messageId.ToString())
-                        return true;
+                        return message.BasicProperties.Headers ?? new Dictionary<string, object?>();
                 }
             }
             catch (OperationInterruptedException)
@@ -91,7 +105,7 @@ public sealed class IdentityEventPublisher : IAsyncDisposable
             await Task.Delay(100);
         }
 
-        return false;
+        return null;
     }
 
     private async Task PublishBodyAsync(string exchange, Guid id, byte[] body)

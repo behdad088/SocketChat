@@ -9,7 +9,7 @@ public static class ConsumerTelemetryExtensions
         CloudEvent<TEvent> cloudEvent,
         string exchangeName) where TEvent : class
     {
-        ActivityContext.TryParse(cloudEvent.TraceParent, cloudEvent.TraceState, out var parentContext);
+        ActivityContext.TryParse(cloudEvent.TraceParent, cloudEvent.TraceState, isRemote: true, out var parentContext);
 
         return activitySource.StartActivity(
             $"process {exchangeName}",
@@ -22,7 +22,8 @@ public static class ConsumerTelemetryExtensions
                 ["messaging.operation.type"] = "process",
                 ["cloudevents.event_id"] = cloudEvent.Id,
                 ["cloudevents.event_type"] = cloudEvent.Type,
-                ["cloudevents.event_source"] = cloudEvent.Source
+                ["cloudevents.event_source"] = cloudEvent.Source,
+                ["cloudevents.event_spec_version"] = cloudEvent.SpecVersion
             });
     }
 }

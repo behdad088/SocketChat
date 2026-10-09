@@ -56,10 +56,11 @@ public class UserDeletedEventsTests(EventProcessorFixture fixture)
 
     [Theory]
     [MemberData(nameof(InvalidUserDeletedEvents))]
-    public async Task InvalidUserDeleted_IsMovedToTheErrorQueue(string type, object? data)
+    public async Task InvalidUserDeleted_IsMovedToTheErrorQueueWithoutRetries(string type, object? data)
     {
         var messageId = await fixture.Identity.PublishAsync(UserDeletedExchange, type, data);
 
-        (await fixture.Identity.IsInErrorQueueAsync("chat.identity.user.deleted", messageId)).ShouldBeTrue();
+        (await fixture.Identity.WaitForErrorQueueAsync("chat.identity.user.deleted", messageId))
+            .ShouldNotBeNull().ShouldNotContainKey(RetryCountHeader);
     }
 }
