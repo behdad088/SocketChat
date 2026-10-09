@@ -160,6 +160,10 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Test
+        # Ryuk, Testcontainers' cleanup container, is pulled from Docker Hub; CI machines are
+        # discarded after each run, so there is nothing for it to clean up.
+        env:
+          TESTCONTAINERS_RYUK_DISABLED: 'true'
         run: dotnet test src/Services/Chat/Chat.IntegrationTests --configuration Release --logger GitHubActions
 
   # as its Dockerfile is Node-based and not .NET-based, and it has no .NET tests to run.

@@ -15,14 +15,15 @@ public class EventProcessorFixture : IAsyncLifetime
     private const ushort RabbitMqPort = 5672;
 
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder()
-        .WithImage("postgres:16-alpine")
+        // AWS's mirror of the Docker Official Image: Docker Hub rate-limits anonymous pulls from CI runners.
+        .WithImage("public.ecr.aws/docker/library/postgres:16-alpine")
         .WithDatabase("chat_eventprocessor_test")
         .WithUsername("postgres")
         .WithPassword("postgres")
         .Build();
 
     private readonly RabbitMqContainer _rabbitMq = new RabbitMqBuilder()
-        .WithImage("rabbitmq:4-alpine")
+        .WithImage("public.ecr.aws/docker/library/rabbitmq:4-alpine")
         .WithUsername("rabbitmq")
         .WithPassword("rabbitmq")
         .Build();
