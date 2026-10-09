@@ -89,7 +89,7 @@ public class UserChannelDocumentTests(PostgresFixture fixture)
         var keys = await fixture.GetJsonKeysAsync("mt_doc_userchanneldocument", channel.Id);
         keys.ShouldBe(
         [
-            "Id", "ConversationId", "UserId", "State", "IsPinned", "IsPrivate", "LastReadMessageId",
+            "Id", "ConversationId", "UserId", "PeerUserId", "State", "IsPinned", "IsPrivate", "LastReadMessageId",
             "LastMessageId", "LastMessageAt", "LatestMessageBody", "TotalUnreadMessages", "Version"
         ], ignoreOrder: true);
     }
@@ -152,11 +152,13 @@ public class UserChannelDocumentTests(PostgresFixture fixture)
     private static UserChannelDocument NewChannel()
     {
         var userId = Guid.NewGuid().ToString();
+        var peerUserId = Guid.NewGuid().ToString();
         return new UserChannelDocument
         {
-            Id = UserChannelDocument.CreateId(userId, Guid.NewGuid().ToString()),
+            Id = UserChannelDocument.CreateId(userId, peerUserId),
             ConversationId = "01KX6WMD905AN68KKFWQVDNCHZ",
-            UserId = userId
+            UserId = userId,
+            PeerUserId = peerUserId
         };
     }
 

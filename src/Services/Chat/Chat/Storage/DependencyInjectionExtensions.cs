@@ -31,6 +31,15 @@ public static class DependencyInjectionExtensions
 
         services.AddSingleton<DeleteUserDataCommand>();
         services.AddSingleton<DeleteUserData>(sp => sp.GetRequiredService<DeleteUserDataCommand>().Execute);
+
+        services.AddSingleton<StartConversationCommand>();
+        services.AddSingleton<StartConversation>(sp => sp.GetRequiredService<StartConversationCommand>().Execute);
+
+        services.AddSingleton<GetChannelQuery>();
+        services.AddSingleton<GetChannel>(sp => sp.GetRequiredService<GetChannelQuery>().Execute);
+
+        services.AddSingleton<GetConversationQuery>();
+        services.AddSingleton<GetConversation>(sp => sp.GetRequiredService<GetConversationQuery>().Execute);
         
         return services;
     }

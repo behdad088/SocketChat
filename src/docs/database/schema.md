@@ -51,7 +51,7 @@ This table marks the channel between two users; it will be used to retrieve the 
 
 When a user starts a new conversation with another user, we first check for an existing conversation. If there is none, **two** entries are created in this table — one per participant — sharing a single unique conversation ID. Both rows must be created in the same transaction as the Conversation document.
 
-Because the Id `{user_id}:{peer_user_id}` is deterministic, concurrent creation (both users initiating a conversation at the same time) is handled by upserting on the Id: whichever transaction commits second detects the existing row and reuses its ConversationId instead of creating a duplicate.
+Because the Id `{user_id}:{peer_user_id}` is deterministic, concurrent creation (both users initiating a conversation at the same time) is handled by inserting on the Id: the transaction that commits second fails on the existing rows and rolls back, including its own Conversation document, and its retry finds the existing row and reuses its ConversationId instead of creating a duplicate.
 
 Each user owns their own row, so per-user preferences (state, pin, read position) apply only to that user and never leak to the other participant.
 
@@ -63,6 +63,7 @@ Each user owns their own row, so per-user preferences (state, pin, read position
 | Id                  | string   | no         | {user_id}:{peer_user_id}, example:  `d9360022-d706-4670-bf05-6c7e0a043732:3d7babc6-b1ed-485c-b598-82d607ee7b4d`          |
 | ConversationId      | string   | no         | conversation id, example:  `01KX6WMD905AN68KKFWQVDNCHZ`                                                                  |
 | UserId              | string   | no         | id of the user who owns this row, example:  `d9360022-d706-4670-bf05-6c7e0a043732`                                       |
+| PeerUserId          | string   | no         | id of the other participant, example:  `3d7babc6-b1ed-485c-b598-82d607ee7b4d`                                            |
 | State               | string   | yes        | active, muted or archived                                                                                                |
 | IsPinned            | boolean  | no         | true if the conversation is pinned                                                                                       |
 | IsPrivate           | boolean  | no         | true if this user has made the conversation private (see NOTE below)                                                    |

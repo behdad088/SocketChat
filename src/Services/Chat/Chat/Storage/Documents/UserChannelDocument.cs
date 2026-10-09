@@ -9,6 +9,7 @@ public sealed record UserChannelDocument
     public required string Id { get; init; }
     public required string ConversationId { get; init; }
     public required string UserId { get; init; }
+    public required string PeerUserId { get; init; }
     public ChannelState? State { get; init; }
     public bool IsPinned { get; init; }
     public bool IsPrivate { get; init; }

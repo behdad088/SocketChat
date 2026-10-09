@@ -1,5 +1,4 @@
 using Chat.Storage;
-using JasperFx;
 using Marten;
 using Npgsql;
 using Testcontainers.PostgreSql;
@@ -60,8 +59,7 @@ public class PostgresFixture : IAsyncLifetime
                 await session.SaveChangesAsync();
                 return;
             }
-            catch (Exception exception)
-                when (exception is ConcurrencyException or DocumentAlreadyExistsException && attempt < 50)
+            catch (Exception exception) when (exception.IsWriteConflict() && attempt < 50)
             {
             }
         }
