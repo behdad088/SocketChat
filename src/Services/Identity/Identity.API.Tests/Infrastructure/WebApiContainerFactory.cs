@@ -10,7 +10,8 @@ public class WebApiContainerFactory : IAsyncLifetime
     private const ushort RabbitMqPort = 5672;
 
     private readonly IContainer _postgres = new ContainerBuilder()
-        .WithImage("postgres:16-alpine")
+        // AWS's mirror of the Docker Official Image: Docker Hub rate-limits anonymous pulls from CI runners.
+        .WithImage("public.ecr.aws/docker/library/postgres:16-alpine")
         .WithPortBinding(PostgresPort, true)
         .WithEnvironment("POSTGRES_USER", "postgres")
         .WithEnvironment("POSTGRES_PASSWORD", "postgres")
@@ -19,7 +20,7 @@ public class WebApiContainerFactory : IAsyncLifetime
         .Build();
 
     private readonly RabbitMqContainer _rabbitMq = new RabbitMqBuilder()
-        .WithImage("rabbitmq:4-alpine")
+        .WithImage("public.ecr.aws/docker/library/rabbitmq:4-alpine")
         .WithUsername("rabbitmq")
         .WithPassword("rabbitmq")
         .Build();

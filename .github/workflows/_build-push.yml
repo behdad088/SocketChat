@@ -86,6 +86,10 @@ jobs:
 
       - name: Restore & test (with coverage)
         if: inputs.test_path != ''
+        # Ryuk, Testcontainers' cleanup container, is pulled from Docker Hub; CI machines are
+        # discarded after each run, so there is nothing for it to clean up.
+        env:
+          TESTCONTAINERS_RYUK_DISABLED: 'true'
         run: |
           dotnet restore "${{ inputs.test_path }}"
           dotnet test "${{ inputs.test_path }}" \

@@ -6,7 +6,8 @@ namespace Chat.API.IntegrationTests.Infrastructure;
 public class ChatApiFixture : IAsyncLifetime
 {
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder()
-        .WithImage("postgres:16-alpine")
+        // AWS's mirror of the Docker Official Image: Docker Hub rate-limits anonymous pulls from CI runners.
+        .WithImage("public.ecr.aws/docker/library/postgres:16-alpine")
         .WithDatabase("chat_api_test")
         .WithUsername("postgres")
         .WithPassword("postgres")
