@@ -55,6 +55,8 @@ Because the Id `{user_id}:{peer_user_id}` is deterministic, concurrent creation 
 
 Each user owns their own row, so per-user preferences (state, pin, read position) apply only to that user and never leak to the other participant.
 
+`State` and `IsPinned` are only ever changed by the row's owner, so they are written with a patch and no version check: the last write wins, and a message persisted at the same moment (which bumps `Version`) does not make the change fail.
+
 ## schema
 `mt_doc_userchanneldocument`
 
