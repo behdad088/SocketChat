@@ -40,6 +40,9 @@ public static class DependencyInjectionExtensions
 
         services.AddSingleton<GetConversationQuery>();
         services.AddSingleton<GetConversation>(sp => sp.GetRequiredService<GetConversationQuery>().Execute);
+
+        services.AddSingleton<SetChannelPreferencesCommand>();
+        services.AddSingleton<SetChannelPreferences>(sp => sp.GetRequiredService<SetChannelPreferencesCommand>().Execute);
         
         return services;
     }
