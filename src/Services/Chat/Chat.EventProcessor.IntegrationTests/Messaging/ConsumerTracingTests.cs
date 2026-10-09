@@ -39,6 +39,8 @@ public sealed class ConsumerTracingTests : IDisposable
         activity.Kind.ShouldBe(ActivityKind.Consumer);
         activity.TraceId.ShouldBe(traceId);
         activity.ParentSpanId.ShouldBe(spanId);
+        activity.HasRemoteParent.ShouldBeTrue();
+        activity.GetTagItem("cloudevents.event_spec_version").ShouldBe("1.0");
         activity.Status.ShouldBe(ActivityStatusCode.Unset);
     }
 
@@ -47,7 +49,7 @@ public sealed class ConsumerTracingTests : IDisposable
     {
         var messageId = await _fixture.Identity.PublishAsync(
             UserCreatedExchange, UserCreatedType, UserEventData.New(version: 0) with { Email = "" });
-        (await _fixture.Identity.IsInErrorQueueAsync("chat.identity.user.created", messageId)).ShouldBeTrue();
+        (await _fixture.Identity.WaitForErrorQueueAsync("chat.identity.user.created", messageId)).ShouldNotBeNull();
 
         ProcessActivity(messageId).Status.ShouldBe(ActivityStatusCode.Error);
     }

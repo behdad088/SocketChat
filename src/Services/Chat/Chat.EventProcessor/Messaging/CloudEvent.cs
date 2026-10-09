@@ -8,6 +8,7 @@ public sealed record CloudEvent<TEvent> where TEvent : class
     [JsonPropertyName("id")] public string? Id { get; init; }
     [JsonPropertyName("type")] public string? Type { get; init; }
     [JsonPropertyName("source")] public string? Source { get; init; }
+    [JsonPropertyName("specversion")] public string? SpecVersion { get; init; }
     [JsonPropertyName("data")] public TEvent? Data { get; init; }
     [JsonPropertyName("traceparent")] public string? TraceParent { get; init; }
     [JsonPropertyName("tracestate")] public string? TraceState { get; init; }

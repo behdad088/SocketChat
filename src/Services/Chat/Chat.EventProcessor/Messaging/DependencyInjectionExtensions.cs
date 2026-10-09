@@ -53,6 +53,8 @@ public static class DependencyInjectionExtensions
         cfg.ReceiveEndpoint($"chat.{TEvent.ExchangeName}", endpoint =>
         {
             endpoint.ConfigureConsumeTopology = false;
+            // A Fault<T> would carry the whole event, email and names included.
+            endpoint.PublishFaults = false;
             endpoint.UseRawJsonDeserializer(RawSerializerOptions.AnyMessageType, isDefault: true);
             endpoint.Bind(TEvent.ExchangeName, exchange => exchange.ExchangeType = ExchangeType.Fanout);
 

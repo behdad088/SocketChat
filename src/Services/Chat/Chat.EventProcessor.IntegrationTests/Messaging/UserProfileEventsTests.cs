@@ -142,18 +142,33 @@ public class UserProfileEventsTests(EventProcessorFixture fixture)
 
     [Theory]
     [MemberData(nameof(InvalidUserCreatedEvents))]
-    public async Task InvalidUserCreated_IsMovedToTheErrorQueue(string type, object? data)
+    public async Task InvalidUserCreated_IsMovedToTheErrorQueueWithoutRetries(string type, object? data)
     {
         var messageId = await fixture.Identity.PublishAsync(UserCreatedExchange, type, data);
 
-        (await fixture.Identity.IsInErrorQueueAsync("chat.identity.user.created", messageId)).ShouldBeTrue();
+        (await fixture.Identity.WaitForErrorQueueAsync("chat.identity.user.created", messageId))
+            .ShouldNotBeNull().ShouldNotContainKey(RetryCountHeader);
     }
 
     [Fact]
-    public async Task UserCreated_ThatIsNotJson_IsMovedToTheErrorQueue()
+    public async Task InvalidUserCreated_IsNotPublishedAsAFault()
+    {
+        // Every Fault<T> MassTransit publishes also reaches the MassTransit:Fault exchange.
+        var faults = await fixture.Identity.BindQueueAsync("MassTransit:Fault");
+
+        var messageId = await fixture.Identity.PublishAsync(
+            UserCreatedExchange, UserCreatedType, UserEventData.New(version: 0) with { Email = "" });
+        (await fixture.Identity.WaitForErrorQueueAsync("chat.identity.user.created", messageId)).ShouldNotBeNull();
+
+        (await fixture.Identity.CountMessagesAsync(faults)).ShouldBe(0u);
+    }
+
+    [Fact]
+    public async Task UserCreated_ThatIsNotJson_IsMovedToTheErrorQueueWithoutRetries()
     {
         var messageId = await fixture.Identity.PublishBodyAsync(UserCreatedExchange, "not json");
 
-        (await fixture.Identity.IsInErrorQueueAsync("chat.identity.user.created", messageId)).ShouldBeTrue();
+        (await fixture.Identity.WaitForErrorQueueAsync("chat.identity.user.created", messageId))
+            .ShouldNotBeNull().ShouldNotContainKey(RetryCountHeader);
     }
 }

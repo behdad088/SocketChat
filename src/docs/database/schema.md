@@ -169,7 +169,7 @@ The Chat Service stores PII only in the Profile document (names, email, phone nu
 When the Identity service publishes a **UserDeleted** event, the Chat Service:
 
 1. **Replaces the profile document with a tombstone** (`mt_doc_profiledocument`): every personal field is cleared, `IsDeleted` is set and `Version` takes the UserDeleted event's version. This removes all PII held by the Chat Service. The row is kept rather than deleted so that a late UserCreated or UserUpdated, which carries a lower version, is ignored by the version guard instead of re-creating the profile.
-2. **Deletes the user's channel rows** (`mt_doc_userchanneldocument` where `UserId` = deleted user); their chat list is gone.
+2. **Keeps the user's channel rows** (`mt_doc_userchanneldocument` where `UserId` = deleted user). They hold no PII, only ids, read state and the latest message body, and nothing is hard-deleted.
 3. **Keeps conversations and messages intact.** The other participant keeps their conversation history. `Participants` and `SenderId` still contain the deleted user's GUID, which is not PII on its own; clients render it as "Deleted user" when no profile is returned for the id (profile queries never return tombstones).
 4. **Message content authored by the deleted user is retained** (including entries in `mt_doc_messageversiondocument`). Messages belong to the conversation, not the account; the same rule chat products generally apply. If a stricter erasure policy is ever required, the follow-up would be to null out `Content` on the deleted user's messages and purge their message version snapshots.
 
