@@ -1,0 +1,59 @@
+# Copies the container images CI pulls from Docker Hub into this repository owner's GitHub
+# Container Registry (ghcr.io/<owner>/mirror/<image>). CI pulls the copies with the workflow
+# token, because Docker Hub and ECR Public rate-limit and time out the IPs GitHub's runners share.
+# Run it by hand after adding an image to the list; it also refreshes the copies every Monday.
+name: Mirror CI images
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 4 * * 1'
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  mirror:
+    name: Mirror ${{ matrix.image }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - postgres:16-alpine
+          - rabbitmq:4-alpine
+          - testcontainers/ryuk:0.6.0
+          - moby/buildkit:buildx-stable-1
+          - tonistiigi/binfmt:latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to Docker Hub
+        uses: ./.github/actions/dockerhub-login
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME || secrets.DOCKERHUB_USERNAME }}
+          token: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # imagetools copies the whole image index, every platform, registry to registry.
+      - name: Copy to GHCR
+        env:
+          SOURCE: docker.io/${{ matrix.image }}
+          TARGET: ghcr.io/${{ github.repository_owner }}/mirror/${{ matrix.image }}
+        run: |
+          destination=$(echo "$TARGET" | tr '[:upper:]' '[:lower:]')
+          for attempt in 1 2 3; do
+            docker buildx imagetools create --tag "$destination" "$SOURCE" && exit 0
+            echo "::warning::Attempt $attempt to copy $SOURCE failed; retrying in 30 s."
+            sleep 30
+          done
+          exit 1
